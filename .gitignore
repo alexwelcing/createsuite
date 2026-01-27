@@ -70,6 +70,10 @@ web_modules/
 .env.*
 !.env.example
 
+# CreateSuite specific
+.createsuite/oauth-token.json
+.createsuite/*.tmp
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
