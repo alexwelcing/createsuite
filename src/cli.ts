@@ -10,6 +10,7 @@ import { AgentOrchestrator } from './agentOrchestrator';
 import { ConvoyManager } from './convoyManager';
 import { GitIntegration } from './gitIntegration';
 import { OAuthManager } from './oauthManager';
+import { ProviderManager } from './providerManager';
 import { TaskStatus, TaskPriority, ConvoyStatus, AgentStatus } from './types';
 
 const program = new Command();
@@ -31,6 +32,7 @@ program
   .option('-n, --name <name>', 'Workspace name')
   .option('-r, --repo <url>', 'Git repository URL')
   .option('--git', 'Initialize git repository')
+  .option('--skip-providers', 'Skip provider setup')
   .action(async (options) => {
     const workspaceRoot = getWorkspaceRoot();
     const name = options.name || path.basename(workspaceRoot);
@@ -47,10 +49,37 @@ program
     }
     
     console.log(chalk.green(`✓ Workspace "${name}" initialized at ${workspaceRoot}`));
+    
+    // Prompt for provider setup
+    if (!options.skipProviders) {
+      console.log(chalk.bold.cyan('\n🚀 Let\'s set up your AI model providers!\n'));
+      console.log(chalk.gray('CreateSuite uses OpenCode and oh-my-opencode for advanced agent orchestration.'));
+      console.log(chalk.gray('This will configure connections to Z.ai, Claude, OpenAI, MiniMax, and more.\n'));
+      
+      const inquirer = (await import('inquirer')).default;
+      const { setupProviders } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'setupProviders',
+          message: 'Would you like to set up your AI providers now?',
+          default: true
+        }
+      ]);
+      
+      if (setupProviders) {
+        const providerManager = new ProviderManager(workspaceRoot);
+        await providerManager.setupProviders();
+      } else {
+        console.log(chalk.gray('\nYou can set up providers later by running:'));
+        console.log(chalk.blue('  cs provider setup\n'));
+      }
+    }
+    
     console.log(chalk.gray('\nNext steps:'));
     console.log(chalk.gray('  cs agent create <name>  - Create an agent'));
     console.log(chalk.gray('  cs task create          - Create a task'));
     console.log(chalk.gray('  cs convoy create        - Create a convoy'));
+    console.log(chalk.gray('  cs provider setup       - Configure AI providers'));
   });
 
 // Task commands
@@ -342,6 +371,61 @@ program
     } else {
       console.log(chalk.yellow('OAuth is not configured'));
       console.log(chalk.gray('Run: cs oauth --init'));
+    }
+  });
+
+// Provider commands
+const providerCmd = program.command('provider').description('Manage AI model providers');
+
+providerCmd
+  .command('setup')
+  .description('Interactive setup for AI model providers (Z.ai, Claude, OpenAI, MiniMax)')
+  .action(async () => {
+    const workspaceRoot = getWorkspaceRoot();
+    const providerManager = new ProviderManager(workspaceRoot);
+    
+    try {
+      await providerManager.setupProviders();
+    } catch (error) {
+      console.error(chalk.red('Error during provider setup:'), error);
+      process.exit(1);
+    }
+  });
+
+providerCmd
+  .command('list')
+  .description('List all configured providers')
+  .action(async () => {
+    const workspaceRoot = getWorkspaceRoot();
+    const providerManager = new ProviderManager(workspaceRoot);
+    
+    try {
+      await providerManager.listProviders();
+    } catch (error) {
+      console.error(chalk.red('Error listing providers:'), error);
+      process.exit(1);
+    }
+  });
+
+providerCmd
+  .command('auth')
+  .description('Authenticate configured providers')
+  .action(async () => {
+    const workspaceRoot = getWorkspaceRoot();
+    const providerManager = new ProviderManager(workspaceRoot);
+    
+    try {
+      const providers = await providerManager.loadProviders();
+      if (providers.length === 0) {
+        console.log(chalk.yellow('No providers configured.'));
+        console.log(chalk.gray('Run: cs provider setup'));
+        return;
+      }
+      
+      await providerManager.authenticateProviders(providers);
+    } catch (error) {
+      console.error(chalk.red('Error authenticating providers:'), error);
+      process.exit(1);
     }
   });
 

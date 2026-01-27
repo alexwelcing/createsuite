@@ -4,6 +4,20 @@
 
 CreateSuite enables coordinated multi-agent workflows using OpenCode terminals, with persistent work state tracked in git. Inspired by [Gastown](https://github.com/steveyegge/gastown), CreateSuite provides first-class agent citizens capable of powerful autonomous work.
 
+## ✨ New: AI Provider Management
+
+CreateSuite now integrates with [oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode) to provide seamless configuration and management of AI model providers:
+
+- 🔷 **Z.ai GLM 4.7** - Access via coding plan
+- 🟣 **Claude Opus & Sonnet 4.5** - Pro and Max (20x mode) tiers
+- 🟢 **OpenAI GPT-5.2** - Via coding plan
+- 🔵 **MiniMax 2.1** - Latest model access
+- 🔴 **Google Gemini 3 Pro** - Antigravity OAuth support
+- 🐙 **GitHub Copilot** - Fallback provider
+- 🧘 **OpenCode Zen** - OpenCode native models
+
+Use the interactive setup wizard: `cs provider setup`
+
 ## Features
 
 - 🤖 **First-Class Agents**: Autonomous agents running in dedicated OpenCode terminals
@@ -88,7 +102,26 @@ cs convoy list
 cs convoy show cs-cv-abc12
 ```
 
-### 6. Configure OAuth
+### 6. Configure AI Providers
+
+```bash
+# Set up AI model providers (Z.ai, Claude, OpenAI, MiniMax)
+cs provider setup
+
+# This interactive wizard will:
+# - Check for OpenCode installation
+# - Configure oh-my-opencode
+# - Set up provider connections
+# - Guide you through authentication
+
+# List configured providers
+cs provider list
+
+# Authenticate providers
+cs provider auth
+```
+
+### 7. Configure OAuth (Legacy)
 
 ```bash
 # Initialize OAuth for coding plan
@@ -176,6 +209,14 @@ cs convoy show <convoyId>      # Show convoy details
 cs oauth --init                # Initialize OAuth
 cs oauth --status              # Check OAuth status
 cs oauth --clear               # Clear stored token
+```
+
+### Provider Management
+
+```bash
+cs provider setup              # Interactive provider setup wizard
+cs provider list               # List all configured providers
+cs provider auth               # Authenticate configured providers
 ```
 
 ## Configuration

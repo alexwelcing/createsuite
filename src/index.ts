@@ -10,5 +10,6 @@ export { AgentOrchestrator } from './agentOrchestrator';
 export { ConvoyManager } from './convoyManager';
 export { GitIntegration } from './gitIntegration';
 export { OAuthManager } from './oauthManager';
+export { ProviderManager, Provider } from './providerManager';
 
 export * from './types';

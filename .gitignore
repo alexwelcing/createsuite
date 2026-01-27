@@ -75,6 +75,7 @@ web_modules/
 
 # CreateSuite specific
 .createsuite/oauth-token.json
+.createsuite/providers.json
 .createsuite/*.tmp
 
 # parcel-bundler cache (https://parceljs.org/)
