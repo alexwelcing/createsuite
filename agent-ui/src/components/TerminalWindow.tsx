@@ -60,8 +60,9 @@ const TerminalWindow: React.FC<TerminalWindowProps> = ({
   const fitAddonRef = useRef<FitAddon | null>(null);
 
   useEffect(() => {
-    // Initialize Socket
-    socketRef.current = io('http://localhost:3001');
+    // Initialize Socket - use relative path for production compatibility
+    // In dev, Vite proxy handles this. In prod, served from same origin.
+    socketRef.current = io();
 
     // Initialize Terminal
     const term = new Terminal({

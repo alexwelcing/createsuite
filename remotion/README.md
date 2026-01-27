@@ -53,19 +53,19 @@ cs tour
 
 ## Video Specifications
 
-- **Duration**: 30 seconds (900 frames at 30 FPS)
+- **Duration**: 18 seconds (540 frames at 30 FPS)
 - **Resolution**: 1920x1080 (Full HD)
 - **Format**: MP4
 - **Codec**: H.264
 
 ## Scenes
 
-1. **Title Scene** (0-5s): Introduction with animated CreateSuite logo
-2. **First-Class Agents** (5-10s): Showcase agent capabilities
-3. **Git-Based Tracking** (10-15s): Highlight git-backed persistence
-4. **Convoy Orchestration** (15-20s): Demonstrate task grouping
-5. **CLI Demo** (20-25s): Show command examples
-6. **Call to Action** (25-30s): Installation instructions
+1. **Title Scene**: Sassy introduction
+2. **First-Class Agents**: "Actual Workers"
+3. **Git-Based Tracking**: "Git-Backed Drama"
+4. **Convoy Orchestration**: "Squad Goals"
+5. **CLI Demo**: Fast-paced CLI showoff
+6. **Call to Action**: Demanding installation instructions
 
 ## Customization
 
