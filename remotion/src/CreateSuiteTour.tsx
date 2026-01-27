@@ -16,6 +16,17 @@ const colors = {
   light: '#f8fafc',
 };
 
+// Timing constants (in frames at 30 FPS)
+const SCENE_DURATION = 150; // 5 seconds per scene
+const TIMING = {
+  title: {start: 0, duration: SCENE_DURATION},
+  agents: {start: 150, duration: SCENE_DURATION},
+  git: {start: 300, duration: SCENE_DURATION},
+  convoy: {start: 450, duration: SCENE_DURATION},
+  cli: {start: 600, duration: SCENE_DURATION},
+  cta: {start: 750, duration: SCENE_DURATION},
+};
+
 // Title scene component
 const TitleScene: React.FC = () => {
   const frame = useCurrentFrame();
@@ -359,11 +370,11 @@ const CTAScene: React.FC = () => {
 export const CreateSuiteTour: React.FC = () => {
   return (
     <AbsoluteFill>
-      <Sequence durationInFrames={150}>
+      <Sequence from={TIMING.title.start} durationInFrames={TIMING.title.duration}>
         <TitleScene />
       </Sequence>
 
-      <Sequence from={150} durationInFrames={150}>
+      <Sequence from={TIMING.agents.start} durationInFrames={TIMING.agents.duration}>
         <FeatureScene
           title="First-Class Agents"
           description="Autonomous agents running in dedicated OpenCode terminals with their own identity, state, and communication channels."
@@ -371,7 +382,7 @@ export const CreateSuiteTour: React.FC = () => {
         />
       </Sequence>
 
-      <Sequence from={300} durationInFrames={150}>
+      <Sequence from={TIMING.git.start} durationInFrames={TIMING.git.duration}>
         <FeatureScene
           title="Git-Based Tracking"
           description="Persistent task state using git-backed storage. Every change is tracked, versioned, and auditable."
@@ -379,7 +390,7 @@ export const CreateSuiteTour: React.FC = () => {
         />
       </Sequence>
 
-      <Sequence from={450} durationInFrames={150}>
+      <Sequence from={TIMING.convoy.start} durationInFrames={TIMING.convoy.duration}>
         <FeatureScene
           title="Convoy Orchestration"
           description="Organize related tasks into convoys for coordinated multi-agent workflows and progress tracking."
@@ -387,11 +398,11 @@ export const CreateSuiteTour: React.FC = () => {
         />
       </Sequence>
 
-      <Sequence from={600} durationInFrames={150}>
+      <Sequence from={TIMING.cli.start} durationInFrames={TIMING.cli.duration}>
         <CLIScene />
       </Sequence>
 
-      <Sequence from={750} durationInFrames={150}>
+      <Sequence from={TIMING.cta.start} durationInFrames={TIMING.cta.duration}>
         <CTAScene />
       </Sequence>
     </AbsoluteFill>

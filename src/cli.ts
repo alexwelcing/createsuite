@@ -4,6 +4,8 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import * as path from 'path';
 import * as fs from 'fs';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { ConfigManager } from './config';
 import { TaskManager } from './taskManager';
 import { AgentOrchestrator } from './agentOrchestrator';
@@ -11,6 +13,8 @@ import { ConvoyManager } from './convoyManager';
 import { GitIntegration } from './gitIntegration';
 import { OAuthManager } from './oauthManager';
 import { TaskStatus, TaskPriority, ConvoyStatus, AgentStatus } from './types';
+
+const execAsync = promisify(exec);
 
 const program = new Command();
 
@@ -407,11 +411,18 @@ program
     console.log(chalk.gray(`Location: ${landingPagePath}`));
     
     // Open the landing page in the default browser
-    const open = async (url: string) => {
-      const { exec } = require('child_process');
-      const command = process.platform === 'darwin' ? 'open' : 
-                     process.platform === 'win32' ? 'start' : 'xdg-open';
-      exec(`${command} ${url}`);
+    const open = async (filePath: string) => {
+      // Escape the file path to prevent command injection
+      const escapedPath = filePath.replace(/"/g, '\\"');
+      const command = process.platform === 'darwin' ? `open "${escapedPath}"` : 
+                     process.platform === 'win32' ? `start "" "${escapedPath}"` : 
+                     `xdg-open "${escapedPath}"`;
+      
+      try {
+        await execAsync(command);
+      } catch (error) {
+        console.log(chalk.red('Error opening browser:'), (error as Error).message);
+      }
     };
     
     await open(landingPagePath);
@@ -424,10 +435,6 @@ program
   .description('Build the CreateSuite tour video')
   .option('--preview', 'Preview the video in Remotion studio')
   .action(async (options) => {
-    const { exec } = require('child_process');
-    const { promisify } = require('util');
-    const execAsync = promisify(exec);
-    
     if (options.preview) {
       console.log(chalk.blue('Opening Remotion preview...'));
       console.log(chalk.gray('This will open the Remotion studio in your browser.'));
