@@ -35,6 +35,19 @@ Use the interactive setup wizard: `cs provider setup`
 
 **New:** Secure localhost-based authentication for OpenAI with API key support. See [OpenAI Authentication Guide](OPENAI_AUTH.md) for details.
 
+## 🚀 Professional Polish Project
+
+CreateSuite is currently undergoing professional polish to prepare for public release! We're focusing on:
+
+- ✅ **Comprehensive Testing** - Building robust test infrastructure (70%+ coverage target)
+- ✅ **Enhanced Documentation** - Creating quick starts, FAQs, and video tutorials
+- ✅ **Code Quality** - Establishing standards with ESLint, Prettier, and pre-commit hooks
+- ✅ **Provider Excellence** - Perfecting authentication and integration
+- ✅ **Security Hardening** - Ensuring production-ready security posture
+- ✅ **Performance Optimization** - Making everything fast and responsive
+
+**Want to help?** Check out the [Kickoff Project Plan](KICKOFF_PROJECT.md) or [Quick Checklist](POLISH_CHECKLIST.md) to see what we're working on!
+
 ## Features
 
 - 🤖 **First-Class Agents**: Autonomous agents running in dedicated OpenCode terminals
@@ -378,12 +391,32 @@ CreateSuite is inspired by [Gastown](https://github.com/steveyegge/gastown), Ste
 
 ## Contributing
 
-Contributions are welcome! This is an early-stage project focused on:
+Contributions are welcome! We're actively working on the professional polish project. See:
 
-1. Orchestrating multiple OpenCode agents
-2. Git-based task tracking and persistence
-3. Agent communication and coordination
-4. OAuth integration for coding plans
+- **[Kickoff Project Plan](KICKOFF_PROJECT.md)** - Complete 10-phase roadmap
+- **[Quick Checklist](POLISH_CHECKLIST.md)** - Progress tracking and quick wins
+- **[Immediate Actions](IMMEDIATE_ACTIONS.md)** - 7-day action plan
+- **[Task Templates](TASK_TEMPLATES.md)** - Templates for creating tasks
+- **[Convoy Examples](CONVOY_EXAMPLES.md)** - How to organize work
+
+Key focus areas:
+
+1. Testing infrastructure and coverage
+2. Documentation and user experience
+3. Code quality and standards
+4. Provider integration excellence
+5. Security and reliability
+6. Performance optimization
+
+Check out the [issues](https://github.com/awelcing-alm/createsuite/issues) or join our community discussions!
+
+## Project Status
+
+**Current Version:** 0.1.0 (Pre-release)  
+**Target:** v1.0.0 Production Release  
+**Timeline:** 8-10 weeks  
+
+See [KICKOFF_PROJECT.md](KICKOFF_PROJECT.md) for the complete roadmap.
 
 ## License
 
