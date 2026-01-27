@@ -1,0 +1,40 @@
+{
+  "name": "createsuite",
+  "version": "0.1.0",
+  "description": "Orchestrated swarm system for OpenCode agents with git-based task tracking",
+  "main": "dist/index.js",
+  "bin": {
+    "createsuite": "./dist/cli.js",
+    "cs": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/cli.js",
+    "dev": "ts-node src/cli.ts",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "keywords": [
+    "opencode",
+    "agents",
+    "orchestration",
+    "swarm",
+    "git",
+    "task-tracking"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^11.1.0",
+    "simple-git": "^3.22.0",
+    "chalk": "^4.1.2",
+    "uuid": "^9.0.1",
+    "inquirer": "^8.2.6"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/inquirer": "^8.2.10",
+    "@types/uuid": "^9.0.7",
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2"
+  }
+}
