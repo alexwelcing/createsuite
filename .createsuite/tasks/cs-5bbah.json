@@ -1,0 +1,10 @@
+{
+  "id": "cs-5bbah",
+  "title": "architecture,runtime,agents,communication",
+  "description": "Create peer-to-peer communication system between agents. Agents should be able to send messages to each other, share context, coordinate work, and pass results. Implement message queuing, delivery confirmation, and retry logic.",
+  "status": "open",
+  "createdAt": "2026-01-28T02:12:57.445Z",
+  "updatedAt": "2026-01-28T02:12:57.445Z",
+  "priority": "high",
+  "tags": []
+}
