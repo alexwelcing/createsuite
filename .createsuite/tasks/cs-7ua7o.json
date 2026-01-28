@@ -1,0 +1,10 @@
+{
+  "id": "cs-7ua7o",
+  "title": "architecture,runtime,tasks,dependencies",
+  "description": "Implement task dependency system. Tasks can have prerequisites that must be completed first. Support both sequential and parallel dependencies. Add blocking and blocked status handling. Create dependency graph visualization.",
+  "status": "open",
+  "createdAt": "2026-01-28T02:13:05.944Z",
+  "updatedAt": "2026-01-28T02:13:05.944Z",
+  "priority": "high",
+  "tags": []
+}
