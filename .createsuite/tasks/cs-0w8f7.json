@@ -1,0 +1,14 @@
+{
+  "id": "cs-0w8f7",
+  "title": "Add system tray notification area",
+  "description": "Create a system tray area in taskbar for displaying notifications from agents and system events. Should show notification count and allow clicking to view details.",
+  "status": "open",
+  "createdAt": "2026-01-28T02:10:10.855Z",
+  "updatedAt": "2026-01-28T02:10:10.855Z",
+  "priority": "medium",
+  "tags": [
+    "agent-ui",
+    "feature",
+    "ui"
+  ]
+}
