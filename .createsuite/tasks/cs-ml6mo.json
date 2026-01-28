@@ -1,0 +1,14 @@
+{
+  "id": "cs-ml6mo",
+  "title": "Implement multiple desktop support",
+  "description": "Allow users to create multiple virtual desktops with independent windows and taskbars. Each desktop should maintain its own state but share common resources.",
+  "status": "open",
+  "createdAt": "2026-01-28T02:10:10.505Z",
+  "updatedAt": "2026-01-28T02:10:10.505Z",
+  "priority": "medium",
+  "tags": [
+    "agent-ui",
+    "feature",
+    "ui"
+  ]
+}
