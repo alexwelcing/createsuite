@@ -1,0 +1,14 @@
+{
+  "id": "cs-gensb",
+  "title": "Add window state management (minimize/maximize)",
+  "description": "Implement window state management in agent-ui. Windows should be minimizable, maximizable, and restorable. Add minimize button, maximize button, and restore functionality. Keep track of window states (minimized, maximized, normal). Taskbar should show minimized windows.",
+  "status": "open",
+  "createdAt": "2026-01-28T02:08:44.374Z",
+  "updatedAt": "2026-01-28T02:08:44.374Z",
+  "priority": "high",
+  "tags": [
+    "agent-ui",
+    "ui",
+    "feature"
+  ]
+}
