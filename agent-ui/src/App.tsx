@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled, { createGlobalStyle, ThemeProvider } from 'styled-components';
 import { styleReset, AppBar, Toolbar, Button, MenuList, MenuListItem, Separator } from 'react95';
 import original from 'react95/dist/themes/original';
 import ms_sans_serif from 'react95/dist/fonts/ms_sans_serif.woff2';
 import ms_sans_serif_bold from 'react95/dist/fonts/ms_sans_serif_bold.woff2';
 import TerminalWindow from './components/TerminalWindow';
+import ContentWindow from './components/ContentWindow';
 import { Monitor, Terminal as TerminalIcon, Cpu } from 'lucide-react';
 
 const GlobalStyles = createGlobalStyle`
@@ -46,24 +47,45 @@ const TaskbarContainer = styled.div`
   z-index: 10000;
 `;
 
-interface TerminalState {
+interface BaseWindow {
   id: string;
   title: string;
   zIndex: number;
   position: { x: number; y: number };
+}
+
+interface TerminalState extends BaseWindow {
+  type: 'terminal';
   initialCommand?: string;
 }
 
+interface ImageState extends BaseWindow {
+  type: 'image';
+  content: string; // URL
+}
+
+interface BrowserState extends BaseWindow {
+  type: 'browser';
+  content: string; // URL
+}
+
+type WindowState = TerminalState | ImageState | BrowserState;
+
 const App: React.FC = () => {
-  const [terminals, setTerminals] = useState<TerminalState[]>([]);
+  const [windows, setWindows] = useState<WindowState[]>([]);
   const [startMenuOpen, setStartMenuOpen] = useState(false);
   const [agentsMenuOpen, setAgentsMenuOpen] = useState(false);
   const [topZIndex, setTopZIndex] = useState(1);
 
-  const spawnTerminal = (title: string = 'OpenCode Terminal', command?: string, customPosition?: { x: number, y: number }) => {
+  const spawnWindow = (
+    type: 'terminal' | 'image' | 'browser', 
+    title: string, 
+    contentOrCommand?: string, 
+    customPosition?: { x: number, y: number }
+  ) => {
     const id = Math.random().toString(36).substr(2, 9);
     
-    setTerminals(prev => {
+    setWindows(prev => {
       const maxZ = prev.reduce((max, t) => Math.max(max, t.zIndex), topZIndex);
       const newZ = maxZ + 1;
       setTopZIndex(newZ); // Keep state in sync eventually
@@ -79,26 +101,54 @@ const App: React.FC = () => {
         };
       }
 
-      return [...prev, {
+      const base = {
         id,
-        title: `${title} - ${id.substr(0, 4)}`,
+        title: `${title}`, // - ${id.substr(0, 4)}`, // Cleaner titles
         zIndex: newZ,
-        position,
-        initialCommand: command
-      }];
+        position
+      };
+
+      if (type === 'terminal') {
+        return [...prev, { ...base, type: 'terminal', initialCommand: contentOrCommand }];
+      } else if (type === 'image') {
+        return [...prev, { ...base, type: 'image', content: contentOrCommand || '' }];
+      } else {
+        return [...prev, { ...base, type: 'browser', content: contentOrCommand || '' }];
+      }
     });
+    
+    // Only close menus if initiated manually, but hard to tell here.
+    // For now, always close.
     setStartMenuOpen(false);
     setAgentsMenuOpen(false);
   };
 
-  const closeTerminal = (id: string) => {
-    setTerminals(prev => prev.filter(t => t.id !== id));
+  const spawnTerminal = (title: string = 'OpenCode Terminal', command?: string, customPosition?: { x: number, y: number }) => {
+    spawnWindow('terminal', title, command, customPosition);
   };
 
-  const focusTerminal = (id: string) => {
+  const closeWindow = (id: string) => {
+    setWindows(prev => prev.filter(t => t.id !== id));
+  };
+
+  const focusWindow = (id: string) => {
     const newZ = topZIndex + 1;
     setTopZIndex(newZ);
-    setTerminals(prev => prev.map(t => t.id === id ? { ...t, zIndex: newZ } : t));
+    setWindows(prev => prev.map(t => t.id === id ? { ...t, zIndex: newZ } : t));
+  };
+
+  const handleUiCommand = (payload: any) => {
+    console.log('Received UI Command:', payload);
+    if (!payload.type) return;
+
+    if (payload.type === 'image') {
+      // Assuming payload.src is relative to workspace root
+      // We prepend /workspace/ to make it accessible via our static route
+      const src = payload.src.startsWith('http') ? payload.src : `/workspace/${payload.src}`;
+      spawnWindow('image', payload.title || 'Image Preview', src);
+    } else if (payload.type === 'browser') {
+      spawnWindow('browser', payload.title || 'Web Preview', payload.url);
+    }
   };
 
   useEffect(() => {
@@ -125,18 +175,37 @@ const App: React.FC = () => {
     <ThemeProvider theme={original}>
       <GlobalStyles />
       <Desktop>
-        {terminals.map(term => (
-          <TerminalWindow
-            key={term.id}
-            id={term.id}
-            title={term.title}
-            zIndex={term.zIndex}
-            initialPosition={term.position}
-            onClose={closeTerminal}
-            onFocus={focusTerminal}
-            initialCommand={term.initialCommand}
-          />
-        ))}
+        {windows.map(win => {
+          if (win.type === 'terminal') {
+            return (
+              <TerminalWindow
+                key={win.id}
+                id={win.id}
+                title={win.title}
+                zIndex={win.zIndex}
+                initialPosition={win.position}
+                onClose={closeWindow}
+                onFocus={focusWindow}
+                initialCommand={win.initialCommand}
+                onUiCommand={handleUiCommand}
+              />
+            );
+          } else {
+            return (
+               <ContentWindow
+                key={win.id}
+                id={win.id}
+                title={win.title}
+                type={win.type}
+                content={win.content}
+                zIndex={win.zIndex}
+                initialPosition={win.position}
+                onClose={closeWindow}
+                onFocus={focusWindow}
+               />
+            );
+          }
+        })}
 
         <TaskbarContainer>
           <AppBar style={{ position: 'static', top: 'auto', bottom: 0 }}>
@@ -253,20 +322,18 @@ const App: React.FC = () => {
               
               {/* Taskbar Items */}
               <div style={{ flex: 1, display: 'flex', marginLeft: 10, overflowX: 'auto' }}>
-                 {terminals.map(term => (
+                 {windows.map(win => (
                    <Button
-                    key={term.id}
-                    active={term.zIndex === topZIndex}
-                    onClick={() => focusTerminal(term.id)}
+                    key={win.id}
+                    active={win.zIndex === topZIndex}
+                    onClick={() => focusWindow(win.id)}
                     style={{ marginRight: 4, minWidth: 100, textAlign: 'left', display: 'flex', alignItems: 'center' }}
                    >
-                     <img
-                        src="https://win98icons.alexmeub.com/icons/png/console_prompt-0.png"
-                        alt="term"
-                        style={{ height: '16px', marginRight: 4 }}
-                      />
+                     {win.type === 'terminal' && <img src="https://win98icons.alexmeub.com/icons/png/console_prompt-0.png" alt="term" style={{ height: '16px', marginRight: 4 }} />}
+                     {win.type === 'image' && <img src="https://win98icons.alexmeub.com/icons/png/paint_file-2.png" alt="img" style={{ height: '16px', marginRight: 4 }} />}
+                     {win.type === 'browser' && <img src="https://win98icons.alexmeub.com/icons/png/msie1-0.png" alt="web" style={{ height: '16px', marginRight: 4 }} />}
                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                       {term.title}
+                       {win.title}
                      </span>
                    </Button>
                  ))}

@@ -14,6 +14,9 @@ app.use(cors());
 const distPath = path.join(__dirname, '../dist');
 app.use(express.static(distPath));
 
+// Serve project workspace files (allows accessing generated assets)
+app.use('/workspace', express.static(process.cwd()));
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -55,7 +58,11 @@ io.on('connection', (socket) => {
         cols: cols || 80,
         rows: rows || 30,
         cwd: process.env.HOME,
-        env: process.env
+        env: {
+            ...process.env,
+            // Inject helper function for UI commands
+            // usage: echo ":::UI_CMD:::{\"type\":\"image\",\"src\":\"path.png\"}"
+        }
       });
     } catch (err) {
       console.error('Failed to spawn pty:', err);
@@ -64,6 +71,19 @@ io.on('connection', (socket) => {
 
     ptyProcess.onData((data) => {
       socket.emit('output', data);
+      
+      // Simple parsing for UI commands
+      // Look for :::UI_CMD:::{JSON}:::
+      const cmdRegex = /:::UI_CMD:::({.+?})(?:::)?/g;
+      let match;
+      while ((match = cmdRegex.exec(data)) !== null) {
+          try {
+              const payload = JSON.parse(match[1]);
+              socket.emit('ui-command', payload);
+          } catch (e) {
+              console.error('Failed to parse UI command:', e);
+          }
+      }
     });
 
     ptyProcess.onExit(({ exitCode, signal }) => {

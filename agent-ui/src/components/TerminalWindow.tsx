@@ -43,6 +43,7 @@ interface TerminalWindowProps {
   onFocus: (id: string) => void;
   initialPosition?: { x: number; y: number };
   initialCommand?: string;
+  onUiCommand?: (command: any) => void;
 }
 
 const TerminalWindow: React.FC<TerminalWindowProps> = ({ 
@@ -52,7 +53,8 @@ const TerminalWindow: React.FC<TerminalWindowProps> = ({
   zIndex, 
   onFocus,
   initialPosition = { x: 50, y: 50 },
-  initialCommand
+  initialCommand,
+  onUiCommand
 }) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
@@ -113,6 +115,12 @@ const TerminalWindow: React.FC<TerminalWindowProps> = ({
 
     socketRef.current.on('output', (data: string) => {
       term.write(data);
+    });
+
+    socketRef.current.on('ui-command', (payload: any) => {
+      if (onUiCommand) {
+        onUiCommand(payload);
+      }
     });
 
     term.onData((data) => {
