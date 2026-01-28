@@ -1,0 +1,10 @@
+{
+  "id": "cs-2rzf5",
+  "title": "architecture,runtime,agents,capabilities",
+  "description": "Create a declarative capability system for agents. Agents should declare their skills (e.g., 'frontend', 'testing', 'api', 'documentation'). Tasks should be tagged with required capabilities. The system should match agent capabilities to task requirements for automatic assignment.",
+  "status": "open",
+  "createdAt": "2026-01-28T02:12:46.937Z",
+  "updatedAt": "2026-01-28T02:12:46.937Z",
+  "priority": "high",
+  "tags": []
+}
