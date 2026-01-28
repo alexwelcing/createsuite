@@ -1,0 +1,14 @@
+{
+  "id": "cs-h28tt",
+  "title": "Add browser window type",
+  "description": "Create a new window type for rendering web content. Should support URL input, back/forward navigation, refresh, and address bar. Style with Windows 95 aesthetics.",
+  "status": "open",
+  "createdAt": "2026-01-28T02:10:09.802Z",
+  "updatedAt": "2026-01-28T02:10:09.802Z",
+  "priority": "high",
+  "tags": [
+    "agent-ui",
+    "feature",
+    "ui"
+  ]
+}
