@@ -71,8 +71,8 @@ Create a compelling "first-time wow" experience that demonstrates CreateSuite's 
 
 ### Definition of Done
 
-- [ ] Running `npx createsuite` in empty folder produces demo experience
-- [ ] Running `npx createsuite` in existing project auto-detects and configures
+- [x] Running `npx createsuite` in empty folder produces demo experience
+- [x] Running `npx createsuite` in existing project auto-detects and configures
 - [ ] Team member can describe task and system routes to correct workflow
 - [ ] All storage unified under `.createsuite/`
 - [ ] Desktop app launches with single command
@@ -793,8 +793,8 @@ node -e "const r = require('./dist/smartRouter'); console.log(r.analyzeComplexit
 ### Final Checklist
 
 - [ ] All "Must Have" features implemented and working
-- [ ] All "Must NOT Have" guardrails respected
+- [x] All "Must NOT Have" guardrails respected
 - [ ] Demo script can be executed end-to-end in 60 seconds
 - [ ] All tests pass
-- [ ] Evidence captured for all scenarios
+- [x] Evidence captured for all scenarios
 - [ ] Team member can run `npx createsuite` and be productive
