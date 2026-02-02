@@ -2,14 +2,14 @@
   "id": "cs-r6w71",
   "title": "Fix demo mode agent terminals showing 'connection failed'",
   "description": "The current demo screenshots show 'connection failed' in each terminal. Need to make agents show meaningful work output. Tasks: 1) Debug why connections fail, 2) Configure demo agents with proper output, 3) Update ELECTRON.md documentation, 4) Take new demo screenshots.",
-  "status": "in_progress",
+  "status": "completed",
   "createdAt": "2026-02-02T17:57:51.334Z",
-  "updatedAt": "2026-02-02T17:58:17.492Z",
+  "updatedAt": "2026-02-02T18:15:00.000Z",
   "priority": "high",
   "tags": [
     "demo",
     "agent-ui",
     "documentation"
   ],
-  "assignedAgent": "10c7b27c-f263-43e6-93dd-1d7046ec2bc1"
+  "completedAt": "2026-02-02T18:15:00.000Z"
 }
