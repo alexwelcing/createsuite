@@ -14,6 +14,7 @@ import { GitIntegration } from './gitIntegration';
 import { OAuthManager } from './oauthManager';
 import { ProviderManager } from './providerManager';
 import { TaskStatus, TaskPriority, ConvoyStatus, AgentStatus, Task } from './types';
+import { SmartRouter, WorkflowType } from './smartRouter';
 
 const execAsync = promisify(exec);
 
@@ -100,20 +101,35 @@ taskCmd
     const workspaceRoot = getWorkspaceRoot();
     const taskManager = new TaskManager(workspaceRoot);
     const gitIntegration = new GitIntegration(workspaceRoot);
+    const smartRouter = new SmartRouter();
     
     const title = options.title || 'New Task';
     const description = options.description || '';
     const priority = options.priority as TaskPriority;
     const tags = options.tags ? options.tags.split(',') : [];
     
+    const fullDescription = `${title} ${description}`.trim();
+    const routingResult = smartRouter.route(fullDescription);
+    
     const task = await taskManager.createTask(title, description, priority, tags);
     
-    // Commit to git
     await gitIntegration.commitTaskChanges(`Created task: ${task.id} - ${task.title}`);
     
     console.log(chalk.green(`✓ Task created: ${task.id}`));
     console.log(chalk.gray(`  Title: ${task.title}`));
     console.log(chalk.gray(`  Priority: ${task.priority}`));
+    console.log();
+    console.log(chalk.cyan('🎯 Workflow Analysis:'));
+    console.log(chalk.gray(`  Recommended: ${routingResult.recommended.toUpperCase()}`));
+    console.log(chalk.gray(`  Confidence: ${Math.round(routingResult.confidence * 100)}%`));
+    console.log(chalk.gray(`  Reasoning: ${routingResult.reasoning}`));
+    
+    if (routingResult.recommended === 'complex' || routingResult.recommended === 'team') {
+      console.log();
+      console.log(chalk.yellow('💡 This task may require planning. Consider:'));
+      console.log(chalk.gray('   - cs plan create <name> to break down the work'));
+      console.log(chalk.gray('   - cs convoy create <name> to coordinate multiple agents'));
+    }
   });
 
 taskCmd
