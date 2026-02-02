@@ -73,9 +73,9 @@ Create a compelling "first-time wow" experience that demonstrates CreateSuite's 
 
 - [x] Running `npx createsuite` in empty folder produces demo experience
 - [x] Running `npx createsuite` in existing project auto-detects and configures
-- [ ] Team member can describe task and system routes to correct workflow
+- [x] Team member can describe task and system routes to correct workflow
 - [ ] All storage unified under `.createsuite/`
-- [ ] Desktop app launches with single command
+- [x] Desktop app launches with single command
 
 ### Must Have
 
