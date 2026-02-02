@@ -1,0 +1,12 @@
+{
+  "id": "10c7b27c-f263-43e6-93dd-1d7046ec2bc1",
+  "name": "demo-agent",
+  "status": "idle",
+  "mailbox": [],
+  "capabilities": [
+    "frontend",
+    "debugging",
+    "documentation"
+  ],
+  "createdAt": "2026-02-02T17:58:06.337Z"
+}
