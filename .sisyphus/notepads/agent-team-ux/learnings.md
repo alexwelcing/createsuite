@@ -82,3 +82,49 @@
 3. Confidence scores help users understand classification strength
 4. Reasoning strings provide transparency
 5. Override support critical for user control
+
+## [2026-01-29T00:20] Task 7: Integration Test Complete
+
+### Test Execution
+- All 5 scenarios tested end-to-end
+- Evidence captured: 8 files in .sisyphus/evidence/
+- Comprehensive gap report: task-7-gaps.md (371 lines)
+
+### Component Status
+✅ **Working Components**:
+- Entry point detection (Scene 1) - PASS
+- Setup wizard (Scene 2) - PASS  
+- SmartRouter - 5/5 tests pass (100%)
+- PlanManager - 4/4 tests pass (100%)
+- Project auto-detection - PASS
+- Configuration management - PASS
+
+❌ **Blocked/Missing**:
+- Desktop app launch - CRITICAL BLOCKER (missing electron:dev script)
+- SmartRouter integration - MAJOR (not wired to CLI task create)
+- Prometheus integration - MAJOR (no auto-planning)
+- Demo mode functionality - MEDIUM (can't test without Desktop)
+
+### Gap Analysis Summary
+- **Total gaps**: 8 identified
+- **Critical blockers**: 1 (Desktop launch)
+- **Major integrations missing**: 2 (SmartRouter, Prometheus)
+- **Medium issues**: 2 (Demo mode, Plan→Execute workflow)
+- **Estimated fix effort**: ~11 hours total
+
+### Key Finding
+**The boulder built solid foundations but missed integration work.**
+
+All individual components are high-quality and tested, but they're not wired together to deliver the "first-time wow" experience. The demo flow is NOT functional for first-time users.
+
+### Recommendations
+1. **Immediate** (15 min): Add electron:dev script to agent-ui/package.json
+2. **High Priority** (2 hours): Integrate SmartRouter into task create command
+3. **High Priority** (4 hours): Connect Prometheus to PlanManager for auto-planning
+
+### Learnings
+- Integration testing reveals gaps that unit tests miss
+- Component-level success ≠ system-level success
+- "Working" components need explicit wiring in CLI commands
+- Demo scripts are excellent acceptance criteria
+- Evidence capture (screenshots, logs) critical for gap analysis
