@@ -11,7 +11,7 @@ import GlobalMapWindow from './components/GlobalMapWindow';
 import type { GlobalMapAgent, GlobalMapMessage } from './components/GlobalMapWindow';
 import SystemMonitor from './components/SystemMonitor';
 import LifecycleNotification from './components/LifecycleNotification';
-import WelcomeWizard from './components/WelcomeWizard';
+import SetupWizard from './components/SetupWizard';
 import DesktopIcons from './components/DesktopIcons';
 import { Monitor, Terminal as TerminalIcon, Cpu } from 'lucide-react';
 
@@ -113,7 +113,7 @@ const App: React.FC = () => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('demo') === 'true' || params.get('skipWelcome') === 'true') return false;
     if (isDemoRoute()) return false;
-    return !localStorage.getItem('createsuite-welcomed');
+    return !localStorage.getItem('createsuite-setup-complete');
   });
   const [globalMessages, setGlobalMessages] = useState<GlobalMapMessage[]>([]);
 
@@ -217,22 +217,61 @@ const App: React.FC = () => {
   }, []);
 
   // Handle welcome wizard completion
-  const handleWelcomeComplete = useCallback((action?: string) => {
+  const handleWelcomeComplete = useCallback((config?: { providers: string[]; launchAgents: string[] }) => {
     setShowWelcome(false);
     
     // Hide the loading screen
     const loading = document.getElementById('loading');
     if (loading) loading.classList.add('hidden');
     
-    // Perform the selected action
-    if (action === 'terminal') {
-      spawnTerminal();
-    } else if (action === 'village') {
-      spawnGlobalMap();
-    } else if (action === 'demo') {
-      runConvoyTest();
+    // If user selected agents to launch, spawn them based on working providers
+    if (config && config.launchAgents && config.launchAgents.length > 0) {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      let delay = 0;
+      
+      config.launchAgents.forEach((agentId, index) => {
+        setTimeout(() => {
+          // Position agents in a grid
+          const col = index % 2;
+          const row = Math.floor(index / 2);
+          const position = {
+            x: col === 0 ? 20 : w - 620,
+            y: row === 0 ? 20 : h - 480
+          };
+          
+          switch (agentId) {
+            case 'terminal':
+              spawnTerminal('Terminal', undefined, position);
+              break;
+            case 'claude':
+              spawnTerminal('Sisyphus (Claude)', 
+                'export OPENCODE_PROVIDER=anthropic OPENCODE_MODEL=claude-opus-4.5; echo "Starting Sisyphus Agent..."; opencode',
+                position);
+              break;
+            case 'openai':
+              spawnTerminal('Oracle (OpenAI)',
+                'export OPENCODE_PROVIDER=openai OPENCODE_MODEL=gpt-5.2; echo "Starting Oracle Agent..."; opencode',
+                position);
+              break;
+            case 'gemini':
+              spawnTerminal('Engineer (Gemini)',
+                'export OPENCODE_PROVIDER=google OPENCODE_MODEL=gemini-3-pro; echo "Starting Engineer Agent..."; opencode',
+                position);
+              break;
+          }
+        }, delay);
+        delay += 200;
+      });
     }
-  }, [runConvoyTest]);
+  }, []);
+  
+  // Handle skip (just close wizard, show empty desktop)
+  const handleSetupSkip = useCallback(() => {
+    setShowWelcome(false);
+    const loading = document.getElementById('loading');
+    if (loading) loading.classList.add('hidden');
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -470,15 +509,11 @@ const App: React.FC = () => {
     <ThemeProvider theme={original}>
       <GlobalStyles />
       <Desktop>
-        {/* Welcome Wizard for first-time users */}
+        {/* Setup Wizard for first-time users */}
         {showWelcome && (
-          <WelcomeWizard 
+          <SetupWizard 
             onComplete={handleWelcomeComplete}
-            onSkip={() => {
-              setShowWelcome(false);
-              const loading = document.getElementById('loading');
-              if (loading) loading.classList.add('hidden');
-            }}
+            onSkip={handleSetupSkip}
           />
         )}
         
