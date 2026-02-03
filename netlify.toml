@@ -6,8 +6,3 @@
   from = "/docs"
   to = "/docs/"
   status = 301
-
-[[redirects]]
-  from = "/docs/*"
-  to = "/docs/:splat"
-  status = 200

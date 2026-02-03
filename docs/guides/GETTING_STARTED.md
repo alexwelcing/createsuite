@@ -286,7 +286,7 @@ my-project/
 └── .gitignore
 ```
 
-## Tips and Best practices
+## Tips and Best Practices
 
 1. **Name agents descriptively**: Use names that reflect their specialization
 2. **Use capabilities wisely**: Tag agents with their actual strengths
