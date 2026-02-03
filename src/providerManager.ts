@@ -39,11 +39,13 @@ export class ProviderManager {
   private workspaceRoot: string;
   private configPath: string;
   private opencodeConfigPath: string;
+  private credentialsPath: string;
 
   constructor(workspaceRoot: string) {
     this.workspaceRoot = workspaceRoot;
     this.configPath = path.join(workspaceRoot, '.createsuite', 'providers.json');
     this.opencodeConfigPath = path.join(os.homedir(), '.config', 'opencode', 'opencode.json');
+    this.credentialsPath = path.join(workspaceRoot, '.createsuite', 'provider-credentials.json');
   }
 
   /**
@@ -136,72 +138,51 @@ export class ProviderManager {
       console.log(chalk.green('✓ oh-my-opencode is configured'));
     }
 
-    // Provider subscription questions
-    console.log(chalk.bold.cyan('\n📋 Provider Subscriptions\n'));
-    
-    const answers = await inquirer.prompt([
+    // Provider selection
+    console.log(chalk.bold.cyan('\n📋 Choose Your Providers\n'));
+
+    const providerChoices = [
+      { name: '🔷 Z.ai GLM 4.7 (coding plan)', value: Provider.ZAI_GLM },
+      { name: '🟣 Claude Opus/Sonnet 4.5', value: Provider.CLAUDE },
+      { name: '🟢 OpenAI GPT-5.2', value: Provider.OPENAI },
+      { name: '🔵 MiniMax 2.1', value: Provider.MINIMAX },
+      { name: '🔴 Google Gemini 3 Pro', value: Provider.GEMINI },
+      { name: '🐙 GitHub Copilot', value: Provider.GITHUB_COPILOT },
+      { name: '🧘 OpenCode Zen', value: Provider.OPENCODE_ZEN },
+      { name: '🤗 Hugging Face Inference (assets)', value: Provider.HUGGINGFACE }
+    ];
+
+    const { selectedProviders } = await inquirer.prompt([
       {
-        type: 'confirm',
-        name: 'hasZai',
-        message: chalk.bold('🔷 Do you have Z.ai GLM 4.7 access via coding plan?'),
-        default: false
-      },
-      {
-        type: 'confirm',
-        name: 'hasClaude',
-        message: chalk.bold('🟣 Do you have Claude Opus/Sonnet 4.5 access via coding plan?'),
-        default: false
-      },
-      {
-        type: 'list',
-        name: 'claudeTier',
-        message: '  What tier?',
-        choices: ['Pro', 'Max (20x mode)'],
-        when: (answers) => answers.hasClaude,
-        default: 'Pro'
-      },
-      {
-        type: 'confirm',
-        name: 'hasOpenAI',
-        message: chalk.bold('🟢 Do you have OpenAI access via coding plan?'),
-        default: false
-      },
-      {
-        type: 'confirm',
-        name: 'hasMinimax',
-        message: chalk.bold('🔵 Do you have MiniMax 2.1 access via coding plan?'),
-        default: false
-      },
-      {
-        type: 'confirm',
-        name: 'hasGemini',
-        message: chalk.bold('🔴 Do you have Gemini access?'),
-        default: false
-      },
-      {
-        type: 'confirm',
-        name: 'hasCopilot',
-        message: chalk.bold('🐙 Do you have GitHub Copilot subscription?'),
-        default: false
-      },
-      {
-        type: 'confirm',
-        name: 'hasOpencodeZen',
-        message: chalk.bold('🧘 Do you have OpenCode Zen access?'),
-        default: false
-      },
-      {
-        type: 'confirm',
-        name: 'hasHuggingFace',
-        message: chalk.bold('🤗 Do you want to use Hugging Face Inference for image/asset generation?'),
-        default: false
+        type: 'checkbox',
+        name: 'selectedProviders',
+        message: 'Select all providers you want to enable:',
+        choices: providerChoices,
+        pageSize: providerChoices.length
       }
     ]);
 
-    // Build provider configuration
     const providers: ProviderConfig[] = [];
 
-    if (answers.hasZai) {
+    const shouldInclude = (provider: Provider) => selectedProviders.includes(provider);
+
+    let claudeModel = 'anthropic/claude-opus-4.5';
+    if (shouldInclude(Provider.CLAUDE)) {
+      const { claudeTier } = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'claudeTier',
+          message: 'Claude tier:',
+          choices: ['Pro', 'Max (20x mode)'],
+          default: 'Pro'
+        }
+      ]);
+      claudeModel = claudeTier === 'Max (20x mode)'
+        ? 'anthropic/claude-opus-4.5-max20'
+        : 'anthropic/claude-opus-4.5';
+    }
+
+    if (shouldInclude(Provider.ZAI_GLM)) {
       providers.push({
         provider: Provider.ZAI_GLM,
         enabled: true,
@@ -210,16 +191,16 @@ export class ProviderManager {
       });
     }
 
-    if (answers.hasClaude) {
+    if (shouldInclude(Provider.CLAUDE)) {
       providers.push({
         provider: Provider.CLAUDE,
         enabled: true,
         authenticated: false,
-        model: answers.claudeTier === 'Max (20x mode)' ? 'anthropic/claude-opus-4.5-max20' : 'anthropic/claude-opus-4.5'
+        model: claudeModel
       });
     }
 
-    if (answers.hasOpenAI) {
+    if (shouldInclude(Provider.OPENAI)) {
       providers.push({
         provider: Provider.OPENAI,
         enabled: true,
@@ -228,7 +209,7 @@ export class ProviderManager {
       });
     }
 
-    if (answers.hasMinimax) {
+    if (shouldInclude(Provider.MINIMAX)) {
       providers.push({
         provider: Provider.MINIMAX,
         enabled: true,
@@ -237,7 +218,7 @@ export class ProviderManager {
       });
     }
 
-    if (answers.hasGemini) {
+    if (shouldInclude(Provider.GEMINI)) {
       providers.push({
         provider: Provider.GEMINI,
         enabled: true,
@@ -246,7 +227,7 @@ export class ProviderManager {
       });
     }
 
-    if (answers.hasCopilot) {
+    if (shouldInclude(Provider.GITHUB_COPILOT)) {
       providers.push({
         provider: Provider.GITHUB_COPILOT,
         enabled: true,
@@ -255,7 +236,7 @@ export class ProviderManager {
       });
     }
 
-    if (answers.hasOpencodeZen) {
+    if (shouldInclude(Provider.OPENCODE_ZEN)) {
       providers.push({
         provider: Provider.OPENCODE_ZEN,
         enabled: true,
@@ -264,7 +245,7 @@ export class ProviderManager {
       });
     }
 
-    if (answers.hasHuggingFace) {
+    if (shouldInclude(Provider.HUGGINGFACE)) {
       providers.push({
         provider: Provider.HUGGINGFACE,
         enabled: true,
@@ -328,55 +309,70 @@ export class ProviderManager {
    * Authenticate providers
    */
   async authenticateProviders(providers: ProviderConfig[]): Promise<void> {
-    for (const provider of providers) {
-      console.log(chalk.bold(`\n🔐 Authenticating ${this.getProviderDisplayName(provider.provider)}...\n`));
+    let authenticatedCount = 0;
+
+    for (let index = 0; index < providers.length; index += 1) {
+      const provider = providers[index];
+      console.log(chalk.bold(`\n🔐 (${index + 1}/${providers.length}) Authenticating ${this.getProviderDisplayName(provider.provider)}...\n`));
+
+      let authenticated = false;
 
       switch (provider.provider) {
         case Provider.CLAUDE:
-          await this.authenticateClaude();
+          authenticated = await this.authenticateClaude();
           break;
         case Provider.OPENAI:
-          await this.authenticateOpenAI();
+          authenticated = await this.authenticateOpenAI();
           break;
         case Provider.GEMINI:
-          await this.authenticateGemini();
+          authenticated = await this.authenticateGemini();
           break;
         case Provider.ZAI_GLM:
-          await this.authenticateZai();
+          authenticated = await this.authenticateZai();
           break;
         case Provider.MINIMAX:
-          await this.authenticateMinimax();
+          authenticated = await this.authenticateMinimax();
           break;
         case Provider.GITHUB_COPILOT:
-          await this.authenticateCopilot();
+          authenticated = await this.authenticateCopilot();
           break;
         case Provider.OPENCODE_ZEN:
-          await this.authenticateOpencodeZen();
+          authenticated = await this.authenticateOpencodeZen();
           break;
         case Provider.HUGGINGFACE:
-          await this.authenticateHuggingFace();
+          authenticated = await this.authenticateHuggingFace();
           break;
       }
 
-      // Mark as authenticated
-      provider.authenticated = true;
-      provider.lastValidated = new Date();
+      provider.authenticated = authenticated;
+      provider.lastValidated = authenticated ? new Date() : provider.lastValidated;
+      if (authenticated) {
+        authenticatedCount += 1;
+      }
       await this.saveProviders(providers);
     }
 
-    console.log(chalk.bold.green('\n🎉 All providers authenticated successfully!\n'));
+    if (authenticatedCount === providers.length) {
+      console.log(chalk.bold.green('\n🎉 All providers authenticated successfully!\n'));
+    } else {
+      console.log(chalk.yellow(`\n⚠️  ${authenticatedCount}/${providers.length} providers authenticated.`));
+      console.log(chalk.gray('You can re-run authentication anytime with:'));
+      console.log(chalk.blue('  cs provider auth\n'));
+    }
   }
 
   /**
    * Authenticate Claude via OpenCode
    */
-  private async authenticateClaude(): Promise<void> {
+  private async authenticateClaude(): Promise<boolean> {
     console.log(chalk.gray('Opening OpenCode authentication...'));
     console.log(chalk.yellow('\nPlease complete the following steps:'));
     console.log(chalk.gray('  1. Run: opencode auth login'));
     console.log(chalk.gray('  2. Select Provider: Anthropic'));
     console.log(chalk.gray('  3. Select Login method: Claude Pro/Max'));
     console.log(chalk.gray('  4. Complete OAuth flow in browser'));
+
+    await this.runOpencodeAuth('Anthropic');
     
     const { completed } = await inquirer.prompt([
       {
@@ -389,15 +385,14 @@ export class ProviderManager {
 
     if (completed) {
       console.log(chalk.green('✓ Claude authentication complete'));
-    } else {
-      console.log(chalk.yellow('⚠️  Authentication skipped. You can authenticate later.'));
     }
+    return completed;
   }
 
   /**
    * Authenticate OpenAI via localhost OAuth or API key
    */
-  private async authenticateOpenAI(): Promise<void> {
+  private async authenticateOpenAI(): Promise<boolean> {
     console.log(chalk.bold.blue('\n🟢 OpenAI Authentication\n'));
     
     const { method } = await inquirer.prompt([
@@ -414,16 +409,15 @@ export class ProviderManager {
     ]);
 
     if (method === 'api-key') {
-      await this.authenticateOpenAIWithAPIKey();
-    } else {
-      await this.authenticateOpenAIWithOAuth();
+      return await this.authenticateOpenAIWithAPIKey();
     }
+    return await this.authenticateOpenAIWithOAuth();
   }
 
   /**
    * Authenticate OpenAI with API key
    */
-  private async authenticateOpenAIWithAPIKey(): Promise<void> {
+  private async authenticateOpenAIWithAPIKey(): Promise<boolean> {
     console.log(chalk.gray('\n📝 Enter your OpenAI API key'));
     console.log(chalk.gray('Get your API key from: https://platform.openai.com/api-keys\n'));
 
@@ -468,15 +462,14 @@ export class ProviderManager {
       console.log(chalk.green('\n✓ OpenAI API key saved securely'));
       console.log(chalk.gray(`Stored in: ${credPath}`));
       console.log(chalk.yellow('\n⚠️  Keep your API key secure and never commit it to git'));
-    } else {
-      console.log(chalk.yellow('⚠️  API key not saved'));
     }
+    return confirm;
   }
 
   /**
    * Authenticate OpenAI with OAuth
    */
-  private async authenticateOpenAIWithOAuth(): Promise<void> {
+  private async authenticateOpenAIWithOAuth(): Promise<boolean> {
     console.log(chalk.gray('\n🌐 Starting OAuth flow...'));
     console.log(chalk.gray('A browser window will open for authentication\n'));
 
@@ -489,19 +482,18 @@ export class ProviderManager {
       console.log(chalk.gray('OAuth flow is not officially supported by OpenAI'));
       console.log(chalk.gray('Falling back to API key method...\n'));
       
-      await this.authenticateOpenAIWithAPIKey();
-      
+      return await this.authenticateOpenAIWithAPIKey();
     } catch (error) {
       console.error(chalk.red('OAuth flow failed:'), error);
       console.log(chalk.yellow('\nFalling back to API key method...'));
-      await this.authenticateOpenAIWithAPIKey();
+      return await this.authenticateOpenAIWithAPIKey();
     }
   }
 
   /**
    * Authenticate Gemini
    */
-  private async authenticateGemini(): Promise<void> {
+  private async authenticateGemini(): Promise<boolean> {
     console.log(chalk.gray('Setting up Gemini Antigravity authentication...'));
     console.log(chalk.yellow('\nSteps:'));
     console.log(chalk.gray('  1. Install: npm install -g opencode-antigravity-auth'));
@@ -509,6 +501,8 @@ export class ProviderManager {
     console.log(chalk.gray('  3. Run: opencode auth login'));
     console.log(chalk.gray('  4. Select Provider: Google'));
     console.log(chalk.gray('  5. Select: OAuth with Google (Antigravity)'));
+
+    await this.runOpencodeAuth('Google');
     
     const { completed } = await inquirer.prompt([
       {
@@ -522,18 +516,26 @@ export class ProviderManager {
     if (completed) {
       console.log(chalk.green('✓ Gemini authentication complete'));
     }
+    return completed;
   }
 
   /**
    * Authenticate Z.ai GLM
    */
-  private async authenticateZai(): Promise<void> {
+  private async authenticateZai(): Promise<boolean> {
     console.log(chalk.gray('Z.ai GLM 4.7 authentication...'));
     console.log(chalk.yellow('\nAuthentication steps:'));
     console.log(chalk.gray('  1. Visit your Z.ai coding plan dashboard'));
     console.log(chalk.gray('  2. Configure API access credentials'));
     console.log(chalk.gray('  3. Run: opencode auth login'));
     console.log(chalk.gray('  4. Select Provider: Z.ai'));
+
+    const stored = await this.promptForApiKey(Provider.ZAI_GLM, 'Z.ai API key');
+    if (stored) {
+      console.log(chalk.green('✓ Z.ai API key saved securely'));
+    }
+
+    await this.runOpencodeAuth('Z.ai');
     
     const { completed } = await inquirer.prompt([
       {
@@ -547,16 +549,22 @@ export class ProviderManager {
     if (completed) {
       console.log(chalk.green('✓ Z.ai authentication complete'));
     }
+    return completed || stored;
   }
 
   /**
    * Authenticate MiniMax
    */
-  private async authenticateMinimax(): Promise<void> {
+  private async authenticateMinimax(): Promise<boolean> {
     console.log(chalk.gray('MiniMax 2.1 authentication...'));
     console.log(chalk.yellow('\nAuthentication steps:'));
     console.log(chalk.gray('  1. Obtain your MiniMax API credentials'));
     console.log(chalk.gray('  2. Configure via OpenCode or direct API key'));
+
+    const stored = await this.promptForApiKey(Provider.MINIMAX, 'MiniMax API key');
+    if (stored) {
+      console.log(chalk.green('✓ MiniMax API key saved securely'));
+    }
     
     const { completed } = await inquirer.prompt([
       {
@@ -570,17 +578,20 @@ export class ProviderManager {
     if (completed) {
       console.log(chalk.green('✓ MiniMax authentication complete'));
     }
+    return completed || stored;
   }
 
   /**
    * Authenticate GitHub Copilot
    */
-  private async authenticateCopilot(): Promise<void> {
+  private async authenticateCopilot(): Promise<boolean> {
     console.log(chalk.gray('GitHub Copilot authentication...'));
     console.log(chalk.yellow('\nAuthentication steps:'));
     console.log(chalk.gray('  1. Run: opencode auth login'));
     console.log(chalk.gray('  2. Select Provider: GitHub'));
     console.log(chalk.gray('  3. Complete OAuth flow'));
+
+    await this.runOpencodeAuth('GitHub');
     
     const { completed } = await inquirer.prompt([
       {
@@ -594,12 +605,13 @@ export class ProviderManager {
     if (completed) {
       console.log(chalk.green('✓ GitHub Copilot authentication complete'));
     }
+    return completed;
   }
 
   /**
    * Authenticate OpenCode Zen
    */
-  private async authenticateOpencodeZen(): Promise<void> {
+  private async authenticateOpencodeZen(): Promise<boolean> {
     console.log(chalk.gray('OpenCode Zen authentication...'));
     console.log(chalk.yellow('\nAuthentication steps:'));
     console.log(chalk.gray('  1. Ensure you have OpenCode Zen access'));
@@ -617,17 +629,25 @@ export class ProviderManager {
     if (completed) {
       console.log(chalk.green('✓ OpenCode Zen setup complete'));
     }
+    return completed;
   }
 
   /**
    * Authenticate Hugging Face
    */
-  private async authenticateHuggingFace(): Promise<void> {
+  private async authenticateHuggingFace(): Promise<boolean> {
     console.log(chalk.gray('Hugging Face Inference authentication...'));
     console.log(chalk.yellow('\nAuthentication steps:'));
     console.log(chalk.gray('  1. Obtain your Hugging Face API token'));
     console.log(chalk.gray('  2. Run: opencode auth login'));
     console.log(chalk.gray('  3. Select Provider: Hugging Face'));
+
+    const stored = await this.promptForApiKey(Provider.HUGGINGFACE, 'Hugging Face API token');
+    if (stored) {
+      console.log(chalk.green('✓ Hugging Face token saved securely'));
+    }
+
+    await this.runOpencodeAuth('Hugging Face');
     
     const { completed } = await inquirer.prompt([
       {
@@ -641,6 +661,85 @@ export class ProviderManager {
     if (completed) {
       console.log(chalk.green('✓ Hugging Face authentication complete'));
     }
+    return completed || stored;
+  }
+
+  private async runOpencodeAuth(providerLabel: string): Promise<void> {
+    const opencodeInstalled = await this.isOpencodeInstalled();
+    if (!opencodeInstalled) {
+      console.log(chalk.yellow('⚠️  OpenCode is not installed. Install it first: https://opencode.ai/docs'));
+      return;
+    }
+
+    const { runNow } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'runNow',
+        message: `Run "opencode auth login" now for ${providerLabel}?`,
+        default: true
+      }
+    ]);
+
+    if (!runNow) {
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      const proc = spawn('opencode', ['auth', 'login'], { stdio: 'inherit' });
+      proc.on('close', () => resolve());
+      proc.on('error', () => resolve());
+    });
+  }
+
+  private async promptForApiKey(provider: Provider, label: string): Promise<boolean> {
+    const { wantsKey } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'wantsKey',
+        message: `Do you want to save a ${label} now?`,
+        default: false
+      }
+    ]);
+
+    if (!wantsKey) {
+      return false;
+    }
+
+    const { apiKey } = await inquirer.prompt([
+      {
+        type: 'password',
+        name: 'apiKey',
+        message: `${label}:`,
+        validate: (input) => {
+          if (!input || input.trim().length === 0) {
+            return 'Value is required';
+          }
+          return true;
+        }
+      }
+    ]);
+
+    this.storeProviderCredential(provider, apiKey.trim());
+    return true;
+  }
+
+  private storeProviderCredential(provider: Provider, value: string): void {
+    const dir = path.dirname(this.credentialsPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    let existing: Record<string, { value: string; updatedAt: string }> = {};
+    if (fs.existsSync(this.credentialsPath)) {
+      try {
+        existing = JSON.parse(fs.readFileSync(this.credentialsPath, 'utf-8'));
+      } catch {
+        existing = {};
+      }
+    }
+
+    existing[provider] = { value, updatedAt: new Date().toISOString() };
+    fs.writeFileSync(this.credentialsPath, JSON.stringify(existing, null, 2), { mode: 0o600 });
   }
 
   /**

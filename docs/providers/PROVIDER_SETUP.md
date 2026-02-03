@@ -88,9 +88,11 @@ This interactive wizard will:
 
 1. ✅ Check if OpenCode is installed
 2. ✅ Check if oh-my-opencode is configured
-3. ✅ Ask about your provider subscriptions
+3. ✅ Let you select providers in a single checklist
 4. ✅ Configure provider settings
-5. ✅ Guide you through authentication
+5. ✅ Walk you through authentication step-by-step (with optional secure API key capture)
+
+Captured API keys are stored locally in `.createsuite/provider-credentials.json` with `0600` permissions and are gitignored by default.
 
 ### 4. Authenticate Providers
 
