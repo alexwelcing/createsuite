@@ -94,6 +94,12 @@ interface SystemMonitorState extends BaseWindow {
 
 type WindowState = TerminalState | ImageState | BrowserState | GlobalMapState | SystemMonitorState;
 
+// Check if we're on a demo route
+const isDemoRoute = () => {
+  const path = window.location.pathname;
+  return path === '/demo' || path === '/demo/';
+};
+
 const App: React.FC = () => {
   const [windows, setWindows] = useState<WindowState[]>([]);
   const [startMenuOpen, setStartMenuOpen] = useState(false);
@@ -103,9 +109,10 @@ const App: React.FC = () => {
   
   // Welcome wizard state
   const [showWelcome, setShowWelcome] = useState(() => {
-    // Check URL params and localStorage
+    // Check URL params, path, and localStorage
     const params = new URLSearchParams(window.location.search);
     if (params.get('demo') === 'true' || params.get('skipWelcome') === 'true') return false;
+    if (isDemoRoute()) return false;
     return !localStorage.getItem('createsuite-welcomed');
   });
   const [globalMessages, setGlobalMessages] = useState<GlobalMapMessage[]>([]);
@@ -251,9 +258,10 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Auto-start demo mode from /demo route or ?demo=true
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('demo') === 'true') {
+    if (params.get('demo') === 'true' || isDemoRoute()) {
       const w = window.innerWidth;
       const h = window.innerHeight;
       
