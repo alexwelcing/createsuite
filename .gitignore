@@ -85,6 +85,9 @@ public/tour.mp4
 public/*.mp4
 remotion/out/
 
+# Netlify
+.netlify/
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache

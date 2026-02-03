@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "build:netlify": "mkdir -p public/docs && cp -R docs/. public/docs && cp README.md public/docs/PROJECT_README.md",
     "start": "node dist/cli.js",
     "dev": "ts-node src/cli.ts",
     "test": "echo \"No tests yet\" && exit 0",
