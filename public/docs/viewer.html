@@ -83,7 +83,12 @@
     const content = document.getElementById("doc-content");
     const errorBox = document.getElementById("doc-error");
 
-    if (!decodedFileName || decodedFileName.startsWith("/") || decodedFileName.split("/").includes("..")) {
+    if (
+      !decodedFileName
+      || decodedFileName.startsWith("/")
+      || decodedFileName.split("/").includes("..")
+      || !/^[a-zA-Z0-9._/-]+$/.test(decodedFileName)
+    ) {
       errorBox.textContent = "Invalid documentation path.";
       errorBox.hidden = false;
       content.textContent = "";
