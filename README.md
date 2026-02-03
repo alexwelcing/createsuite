@@ -94,6 +94,16 @@ Production deployments disable terminal spawn and `/workspace` static serving un
 
 Optional security: API token auth, Basic Auth for the UI, and rate limiting are documented in [docs/guides/DEPLOY_RENDER.md](docs/guides/DEPLOY_RENDER.md).
 
+### Deploy Landing Page + Docs to Netlify
+
+The static landing page and documentation can be deployed to Netlify using the bundled `netlify.toml`.
+
+1. Connect the repository to Netlify.
+2. Set the build command to `npm run build:netlify`.
+3. Set the publish directory to `public`.
+
+Netlify will publish the landing page (`/`) and documentation (`/docs/`) including the project README.
+
 ## Quick Start
 
 ### 1. Initialize Workspace
