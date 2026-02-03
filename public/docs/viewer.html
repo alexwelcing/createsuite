@@ -78,20 +78,21 @@
   <script>
     const fileParam = new URLSearchParams(window.location.search).get("file");
     const fileName = fileParam ? decodeURIComponent(fileParam) : "";
+    const decodedFileName = fileName ? decodeURIComponent(fileName) : "";
     const fileLabel = document.getElementById("file-name");
     const title = document.getElementById("doc-title");
     const content = document.getElementById("doc-content");
     const errorBox = document.getElementById("doc-error");
 
-    if (!fileName || fileName.startsWith("/") || fileName.split("/").includes("..")) {
+    if (!decodedFileName || decodedFileName.startsWith("/") || decodedFileName.split("/").includes("..")) {
       errorBox.textContent = "Invalid documentation path.";
       errorBox.hidden = false;
       content.textContent = "";
       fileLabel.textContent = "";
     } else {
-      fileLabel.textContent = fileName;
-      title.textContent = fileName.split("/").pop();
-      fetch(`./${fileName}`)
+      fileLabel.textContent = decodedFileName;
+      title.textContent = decodedFileName.split("/").pop();
+      fetch(`./${decodedFileName}`)
         .then((response) => {
           if (!response.ok) {
             throw new Error("Unable to load the selected document.");
