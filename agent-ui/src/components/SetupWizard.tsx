@@ -1,26 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import styled, { keyframes } from 'styled-components';
-import { 
-  Window, 
-  WindowHeader, 
-  WindowContent, 
-  Button, 
-  Separator,
-  TextInput,
-  Checkbox,
-  Anchor
-} from 'react95';
+import { macosTheme } from '../theme/macos';
 import { 
   Key, 
   CheckCircle,
   XCircle,
   ArrowRight,
   ArrowLeft,
-  Loader,
   AlertTriangle,
   Sparkles,
   Settings,
-  Play
+  Play,
+  ExternalLink
 } from 'lucide-react';
 
 // ==================== TYPES ====================
@@ -49,7 +40,7 @@ const PROVIDERS: Provider[] = [
     id: 'anthropic',
     name: 'Claude (Anthropic)',
     description: 'Claude Opus 4.5 - Great for complex coding tasks',
-    color: '#7c3aed',
+    color: '#bf5af2',
     envVar: 'ANTHROPIC_API_KEY',
     placeholder: 'sk-ant-...',
     docsUrl: 'https://console.anthropic.com/'
@@ -58,7 +49,7 @@ const PROVIDERS: Provider[] = [
     id: 'openai',
     name: 'OpenAI',
     description: 'GPT-5.2 - Excellent for debugging & architecture',
-    color: '#10a37f',
+    color: '#34c759',
     envVar: 'OPENAI_API_KEY',
     placeholder: 'sk-...',
     docsUrl: 'https://platform.openai.com/api-keys'
@@ -67,7 +58,7 @@ const PROVIDERS: Provider[] = [
     id: 'google',
     name: 'Google Gemini',
     description: 'Gemini 3 Pro - Strong multimodal capabilities',
-    color: '#4285f4',
+    color: '#007aff',
     envVar: 'GOOGLE_API_KEY',
     placeholder: 'AIza...',
     docsUrl: 'https://makersuite.google.com/app/apikey'
@@ -76,7 +67,7 @@ const PROVIDERS: Provider[] = [
     id: 'huggingface',
     name: 'Hugging Face',
     description: 'Stable Diffusion - Asset & image generation',
-    color: '#ff9d00',
+    color: '#ff9f0a',
     envVar: 'HF_TOKEN',
     placeholder: 'hf_...',
     docsUrl: 'https://huggingface.co/settings/tokens'
@@ -86,8 +77,8 @@ const PROVIDERS: Provider[] = [
 // ==================== ANIMATIONS ====================
 
 const fadeIn = keyframes`
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 `;
 
 const spin = keyframes`
@@ -99,212 +90,428 @@ const spin = keyframes`
 const Overlay = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(0, 128, 128, 0.95);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 50000;
 `;
 
-const WizardWindow = styled(Window)`
-  width: 650px;
+const Window = styled.div`
+  width: 600px;
   max-width: 95vw;
   max-height: 90vh;
+  background: rgba(40, 40, 45, 0.95);
+  border-radius: 12px;
   overflow: hidden;
-  box-shadow: 8px 8px 0 rgba(0,0,0,0.5);
+  box-shadow: 
+    0 25px 80px rgba(0, 0, 0, 0.5),
+    0 0 0 0.5px rgba(255, 255, 255, 0.1) inset;
+  animation: ${fadeIn} 0.3s ease-out;
 `;
 
-const ScrollContent = styled(WindowContent)`
-  max-height: calc(90vh - 100px);
+const TitleBar = styled.div`
+  height: 52px;
+  background: linear-gradient(180deg, rgba(60, 60, 65, 0.95) 0%, rgba(45, 45, 50, 0.95) 100%);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.3);
+`;
+
+const TrafficLights = styled.div`
+  display: flex;
+  gap: 8px;
+  align-items: center;
+`;
+
+const TrafficLight = styled.button<{ $color: 'close' | 'minimize' | 'maximize' }>`
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  
+  background: ${props => {
+    switch (props.$color) {
+      case 'close': return '#ff5f57';
+      case 'minimize': return '#febc2e';
+      case 'maximize': return '#28c840';
+    }
+  }};
+  
+  &:hover {
+    filter: brightness(1.1);
+  }
+`;
+
+const TitleText = styled.div`
+  flex: 1;
+  text-align: center;
+  font-family: ${macosTheme.fonts.system};
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+`;
+
+const Content = styled.div`
+  padding: 24px;
+  max-height: calc(90vh - 52px);
   overflow-y: auto;
+  
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+  }
 `;
 
 const StepContent = styled.div`
   animation: ${fadeIn} 0.3s ease-out;
-  min-height: 400px;
+  min-height: 380px;
   display: flex;
   flex-direction: column;
 `;
 
 const Title = styled.h2`
   text-align: center;
-  font-size: 20px;
-  margin: 16px 0 8px 0;
-  color: #000080;
+  font-family: ${macosTheme.fonts.system};
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
 `;
 
 const Subtitle = styled.p`
   text-align: center;
-  font-size: 13px;
-  color: #555;
-  margin: 0 0 20px 0;
+  font-family: ${macosTheme.fonts.system};
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0 0 24px 0;
 `;
 
 const InfoBox = styled.div<{ $type?: 'warning' | 'info' | 'success' }>`
   background: ${props => 
-    props.$type === 'warning' ? '#fff3cd' : 
-    props.$type === 'success' ? '#d4edda' : '#e7f3ff'};
+    props.$type === 'warning' ? 'rgba(255, 159, 10, 0.15)' : 
+    props.$type === 'success' ? 'rgba(52, 199, 89, 0.15)' : 'rgba(0, 122, 255, 0.15)'};
   border: 1px solid ${props => 
-    props.$type === 'warning' ? '#ffc107' : 
-    props.$type === 'success' ? '#28a745' : '#0066cc'};
-  padding: 12px;
-  margin-bottom: 16px;
+    props.$type === 'warning' ? 'rgba(255, 159, 10, 0.3)' : 
+    props.$type === 'success' ? 'rgba(52, 199, 89, 0.3)' : 'rgba(0, 122, 255, 0.3)'};
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+  font-family: ${macosTheme.fonts.system};
   font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 12px;
+  
+  ul {
+    margin: 8px 0 0 0;
+    padding-left: 18px;
+    color: rgba(255, 255, 255, 0.7);
+  }
+  
+  strong {
+    color: white;
+  }
 `;
 
 const ProviderList = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   margin: 16px 0;
 `;
 
 const ProviderCard = styled.div<{ $selected: boolean; $color: string }>`
-  background: ${props => props.$selected ? '#f0f0ff' : '#fff'};
-  border: 2px solid ${props => props.$selected ? props.$color : '#c0c0c0'};
-  padding: 12px;
+  background: ${props => props.$selected 
+    ? `linear-gradient(135deg, ${props.$color}22 0%, ${props.$color}11 100%)`
+    : 'rgba(255, 255, 255, 0.05)'};
+  border: 1px solid ${props => props.$selected ? props.$color : 'rgba(255, 255, 255, 0.1)'};
+  border-radius: 10px;
+  padding: 14px 16px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s ease;
   
   &:hover {
-    background: #f8f8f8;
+    background: ${props => props.$selected 
+      ? `linear-gradient(135deg, ${props.$color}33 0%, ${props.$color}22 100%)`
+      : 'rgba(255, 255, 255, 0.08)'};
     border-color: ${props => props.$color};
   }
 `;
 
+const Checkbox = styled.div<{ $checked: boolean; $color?: string }>`
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  border: 2px solid ${props => props.$checked ? (props.$color || '#007aff') : 'rgba(255, 255, 255, 0.3)'};
+  background: ${props => props.$checked ? (props.$color || '#007aff') : 'transparent'};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  
+  svg {
+    opacity: ${props => props.$checked ? 1 : 0};
+    transform: scale(${props => props.$checked ? 1 : 0.5});
+    transition: all 0.15s ease;
+  }
+`;
+
 const ProviderIcon = styled.div<{ $color: string }>`
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   background: ${props => props.$color};
-  border-radius: 6px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  font-weight: bold;
+  font-weight: 600;
   font-size: 18px;
   flex-shrink: 0;
 `;
 
 const ProviderInfo = styled.div`
   flex: 1;
+  min-width: 0;
 `;
 
 const ProviderName = styled.div`
-  font-weight: bold;
+  font-family: ${macosTheme.fonts.system};
+  font-weight: 500;
   font-size: 14px;
+  color: white;
 `;
 
 const ProviderDesc = styled.div`
-  font-size: 11px;
-  color: #666;
+  font-family: ${macosTheme.fonts.system};
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
   margin-top: 2px;
 `;
 
+const GetKeyLink = styled.a`
+  font-family: ${macosTheme.fonts.system};
+  font-size: 12px;
+  color: #007aff;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  
+  &:hover {
+    text-decoration: underline;
+  }
+`;
+
 const ConfigSection = styled.div`
-  margin: 16px 0;
+  margin: 12px 0;
   padding: 16px;
-  background: #fafafa;
-  border: 1px inset #c0c0c0;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
 `;
 
 const ConfigHeader = styled.div`
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 12px;
+  margin-bottom: 14px;
 `;
 
 const ConfigTitle = styled.div`
-  font-weight: bold;
+  font-family: ${macosTheme.fonts.system};
+  font-weight: 500;
   font-size: 14px;
+  color: white;
+  flex: 1;
 `;
 
 const InputGroup = styled.div`
-  margin-bottom: 12px;
+  margin-bottom: 0;
 `;
 
 const InputLabel = styled.label`
   display: block;
-  font-size: 12px;
-  margin-bottom: 4px;
-  color: #333;
+  font-family: ${macosTheme.fonts.mono};
+  font-size: 11px;
+  margin-bottom: 6px;
+  color: rgba(255, 255, 255, 0.5);
 `;
 
 const InputRow = styled.div`
   display: flex;
-  gap: 8px;
+  gap: 10px;
+`;
+
+const Input = styled.input`
+  flex: 1;
+  height: 36px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 0 12px;
+  font-family: ${macosTheme.fonts.mono};
+  font-size: 13px;
+  color: white;
+  outline: none;
+  transition: all 0.15s ease;
+  
+  &::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+  }
+  
+  &:focus {
+    border-color: #007aff;
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2);
+  }
+`;
+
+const Button = styled.button<{ $primary?: boolean; $small?: boolean }>`
+  height: ${props => props.$small ? '32px' : '36px'};
+  padding: 0 ${props => props.$small ? '14px' : '18px'};
+  border-radius: 6px;
+  border: none;
+  font-family: ${macosTheme.fonts.system};
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  
+  background: ${props => props.$primary 
+    ? 'linear-gradient(180deg, #0a84ff 0%, #007aff 100%)' 
+    : 'rgba(255, 255, 255, 0.1)'};
+  color: ${props => props.$primary ? 'white' : 'rgba(255, 255, 255, 0.85)'};
+  
+  &:hover:not(:disabled) {
+    background: ${props => props.$primary 
+      ? 'linear-gradient(180deg, #2196ff 0%, #0a84ff 100%)' 
+      : 'rgba(255, 255, 255, 0.15)'};
+  }
+  
+  &:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 `;
 
 const StatusBadge = styled.span<{ $status: 'pending' | 'testing' | 'success' | 'error' }>`
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
+  gap: 5px;
+  padding: 4px 10px;
+  font-family: ${macosTheme.fonts.system};
   font-size: 11px;
-  border-radius: 3px;
+  font-weight: 500;
+  border-radius: 20px;
+  
   background: ${props => 
-    props.$status === 'success' ? '#d4edda' :
-    props.$status === 'error' ? '#f8d7da' :
-    props.$status === 'testing' ? '#fff3cd' : '#e9ecef'};
+    props.$status === 'success' ? 'rgba(52, 199, 89, 0.2)' :
+    props.$status === 'error' ? 'rgba(255, 69, 58, 0.2)' :
+    props.$status === 'testing' ? 'rgba(255, 159, 10, 0.2)' : 'rgba(255, 255, 255, 0.1)'};
   color: ${props => 
-    props.$status === 'success' ? '#155724' :
-    props.$status === 'error' ? '#721c24' :
-    props.$status === 'testing' ? '#856404' : '#495057'};
+    props.$status === 'success' ? '#34c759' :
+    props.$status === 'error' ? '#ff453a' :
+    props.$status === 'testing' ? '#ff9f0a' : 'rgba(255, 255, 255, 0.6)'};
 `;
 
-const Spinner = styled(Loader)`
-  animation: ${spin} 1s linear infinite;
-`;
-
-const SummaryList = styled.div`
-  margin: 16px 0;
+const Spinner = styled.div`
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: ${spin} 0.8s linear infinite;
 `;
 
 const ButtonRow = styled.div`
   display: flex;
   justify-content: space-between;
   margin-top: auto;
-  padding-top: 16px;
+  padding-top: 20px;
 `;
 
 const StepIndicator = styled.div`
   display: flex;
   justify-content: center;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 `;
 
 const StepDot = styled.div<{ $active: boolean; $completed: boolean }>`
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: ${props => props.$completed ? '#28a745' : props.$active ? '#000080' : '#c0c0c0'};
-  transition: all 0.2s;
+  background: ${props => 
+    props.$completed ? '#34c759' : 
+    props.$active ? '#007aff' : 'rgba(255, 255, 255, 0.2)'};
+  transition: all 0.2s ease;
 `;
 
 const AgentOption = styled.div<{ $selected: boolean }>`
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: ${props => props.$selected ? '#e8f5e9' : '#fff'};
-  border: 2px solid ${props => props.$selected ? '#4caf50' : '#ddd'};
-  margin-bottom: 8px;
+  gap: 14px;
+  padding: 14px 16px;
+  background: ${props => props.$selected 
+    ? 'rgba(52, 199, 89, 0.1)' 
+    : 'rgba(255, 255, 255, 0.05)'};
+  border: 1px solid ${props => props.$selected 
+    ? 'rgba(52, 199, 89, 0.3)' 
+    : 'rgba(255, 255, 255, 0.1)'};
+  border-radius: 10px;
+  margin-bottom: 10px;
   cursor: pointer;
+  transition: all 0.15s ease;
   
   &:hover {
-    background: #f5f5f5;
+    background: ${props => props.$selected 
+      ? 'rgba(52, 199, 89, 0.15)' 
+      : 'rgba(255, 255, 255, 0.08)'};
+  }
+`;
+
+const SummaryList = styled.div`
+  margin: 16px 0;
+`;
+
+const LinkButton = styled.a`
+  font-family: ${macosTheme.fonts.system};
+  font-size: 13px;
+  color: #007aff;
+  text-decoration: none;
+  
+  &:hover {
+    text-decoration: underline;
   }
 `;
 
@@ -325,13 +532,11 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
 
   const totalSteps = 4;
 
-  // Provider data structure from API
   interface ApiProvider {
     id: string;
     authenticated: boolean;
   }
 
-  // Load any existing configuration
   useEffect(() => {
     fetch('/api/providers')
       .then(res => res.json())
@@ -350,7 +555,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
           }
         }
       })
-      .catch(() => {/* ignore - fresh install */});
+      .catch(() => {});
   }, []);
 
   const toggleProvider = (id: string) => {
@@ -370,11 +575,10 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
       [providerId]: { configured: true, tested: false, working: false }
     }));
 
-    // Simulate API key validation (in real app, call backend)
     await new Promise(resolve => setTimeout(resolve, 1500));
 
     const key = apiKeys[providerId] || '';
-    const isValid = key.length > 10; // Simple validation
+    const isValid = key.length > 10;
 
     setProviderStatus(prev => ({
       ...prev,
@@ -389,7 +593,6 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
   };
 
   const saveConfiguration = async () => {
-    // Save providers config
     try {
       await fetch('/api/providers/save', {
         method: 'POST',
@@ -403,7 +606,6 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
         })
       });
       
-      // Save credentials (API keys)
       const credentials: Record<string, string> = {};
       selectedProviders.forEach(id => {
         if (apiKeys[id]) {
@@ -419,7 +621,6 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
         });
       }
       
-      // Mark authenticated providers
       const authenticated = selectedProviders.filter(id => providerStatus[id]?.working);
       if (authenticated.length > 0) {
         await fetch('/api/providers/mark-authenticated', {
@@ -437,7 +638,6 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
     await saveConfiguration();
     localStorage.setItem('createsuite-setup-complete', 'true');
     
-    // Check if Fly.io spawning is available
     let flyEnabled = false;
     try {
       const configRes = await fetch('/api/agents/configs');
@@ -447,10 +647,9 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
       console.log('Fly.io spawning not available');
     }
     
-    // If we have agents to launch and Fly.io is enabled, spawn them as machines
     if (flyEnabled && agentsToLaunch.length > 0) {
       for (const agentId of agentsToLaunch) {
-        if (agentId === 'terminal') continue; // Basic terminal handled by UI
+        if (agentId === 'terminal') continue;
         
         try {
           await fetch('/api/agents/spawn', {
@@ -479,11 +678,10 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
 
   // ==================== STEP RENDERERS ====================
 
-  // Step 0: Welcome
   const renderWelcome = () => (
     <StepContent>
       <Title>
-        <Sparkles size={24} color="#008080" />
+        <Sparkles size={26} color="#007aff" />
         Welcome to CreateSuite
       </Title>
       <Subtitle>
@@ -491,10 +689,10 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
       </Subtitle>
 
       <InfoBox $type="info">
-        <Settings size={20} color="#0066cc" />
+        <Settings size={20} color="#007aff" style={{ flexShrink: 0, marginTop: 2 }} />
         <div>
           <strong>This wizard will help you:</strong>
-          <ul style={{ margin: '8px 0 0 0', paddingLeft: 20 }}>
+          <ul>
             <li>Choose which AI providers you want to use</li>
             <li>Configure your API keys securely</li>
             <li>Test connections before launching agents</li>
@@ -504,36 +702,33 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
       </InfoBox>
 
       <InfoBox $type="warning">
-        <AlertTriangle size={20} color="#856404" />
+        <AlertTriangle size={20} color="#ff9f0a" style={{ flexShrink: 0, marginTop: 2 }} />
         <div>
           <strong>You'll need API keys</strong> from the providers you want to use. 
           Don't have any? You can still use the basic terminal, or get keys from:
-          <div style={{ marginTop: 8 }}>
-            <Anchor href="https://console.anthropic.com/" target="_blank">Anthropic</Anchor>
-            {' • '}
-            <Anchor href="https://platform.openai.com/" target="_blank">OpenAI</Anchor>
-            {' • '}
-            <Anchor href="https://makersuite.google.com/" target="_blank">Google</Anchor>
+          <div style={{ marginTop: 10, display: 'flex', gap: 16 }}>
+            <LinkButton href="https://console.anthropic.com/" target="_blank">Anthropic</LinkButton>
+            <LinkButton href="https://platform.openai.com/" target="_blank">OpenAI</LinkButton>
+            <LinkButton href="https://makersuite.google.com/" target="_blank">Google</LinkButton>
           </div>
         </div>
       </InfoBox>
 
       <ButtonRow>
         <Button onClick={handleSkip}>
-          Skip Setup (Use Basic Terminal)
+          Skip Setup
         </Button>
-        <Button primary onClick={() => setStep(1)}>
-          Configure Providers <ArrowRight size={14} style={{ marginLeft: 6 }} />
+        <Button $primary onClick={() => setStep(1)}>
+          Configure Providers <ArrowRight size={14} />
         </Button>
       </ButtonRow>
     </StepContent>
   );
 
-  // Step 1: Select Providers
   const renderSelectProviders = () => (
     <StepContent>
       <Title>
-        <Key size={24} color="#000080" />
+        <Key size={26} color="#007aff" />
         Select Your Providers
       </Title>
       <Subtitle>
@@ -548,10 +743,12 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
             $color={provider.color}
             onClick={() => toggleProvider(provider.id)}
           >
-            <Checkbox
-              checked={selectedProviders.includes(provider.id)}
-              onChange={() => toggleProvider(provider.id)}
-            />
+            <Checkbox 
+              $checked={selectedProviders.includes(provider.id)}
+              $color={provider.color}
+            >
+              <CheckCircle size={14} color="white" />
+            </Checkbox>
             <ProviderIcon $color={provider.color}>
               {provider.name.charAt(0)}
             </ProviderIcon>
@@ -560,14 +757,13 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
               <ProviderDesc>{provider.description}</ProviderDesc>
             </ProviderInfo>
             {provider.docsUrl && (
-              <Anchor 
+              <GetKeyLink 
                 href={provider.docsUrl} 
                 target="_blank"
                 onClick={e => e.stopPropagation()}
-                style={{ fontSize: 11 }}
               >
-                Get Key →
-              </Anchor>
+                Get Key <ExternalLink size={12} />
+              </GetKeyLink>
             )}
           </ProviderCard>
         ))}
@@ -581,24 +777,23 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
 
       <ButtonRow>
         <Button onClick={() => setStep(0)}>
-          <ArrowLeft size={14} style={{ marginRight: 6 }} /> Back
+          <ArrowLeft size={14} /> Back
         </Button>
         <Button 
-          primary 
+          $primary 
           onClick={() => setStep(selectedProviders.length > 0 ? 2 : 3)}
         >
           {selectedProviders.length > 0 ? 'Configure Keys' : 'Skip to Finish'} 
-          <ArrowRight size={14} style={{ marginLeft: 6 }} />
+          <ArrowRight size={14} />
         </Button>
       </ButtonRow>
     </StepContent>
   );
 
-  // Step 2: Configure API Keys
   const renderConfigureKeys = () => (
     <StepContent>
       <Title>
-        <Key size={24} color="#000080" />
+        <Key size={26} color="#007aff" />
         Enter API Keys
       </Title>
       <Subtitle>
@@ -613,7 +808,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
         return (
           <ConfigSection key={providerId}>
             <ConfigHeader>
-              <ProviderIcon $color={provider.color} style={{ width: 32, height: 32, fontSize: 14 }}>
+              <ProviderIcon $color={provider.color} style={{ width: 36, height: 36, fontSize: 14 }}>
                 {provider.name.charAt(0)}
               </ProviderIcon>
               <ConfigTitle>{provider.name}</ConfigTitle>
@@ -628,7 +823,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
               )}
               {isTesting && (
                 <StatusBadge $status="testing">
-                  <Spinner size={12} /> Testing...
+                  <Spinner /> Testing...
                 </StatusBadge>
               )}
             </ConfigHeader>
@@ -636,18 +831,18 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
             <InputGroup>
               <InputLabel>{provider.envVar}</InputLabel>
               <InputRow>
-                <TextInput
+                <Input
                   type="password"
                   placeholder={provider.placeholder}
                   value={apiKeys[providerId] || ''}
                   onChange={(e) => updateApiKey(providerId, e.target.value)}
-                  style={{ flex: 1 }}
                 />
                 <Button 
+                  $small
                   onClick={() => testProvider(providerId)}
                   disabled={!apiKeys[providerId] || isTesting}
                 >
-                  {isTesting ? <Spinner size={14} /> : 'Test'}
+                  {isTesting ? <Spinner /> : 'Test'}
                 </Button>
               </InputRow>
             </InputGroup>
@@ -657,21 +852,20 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
 
       <ButtonRow>
         <Button onClick={() => setStep(1)}>
-          <ArrowLeft size={14} style={{ marginRight: 6 }} /> Back
+          <ArrowLeft size={14} /> Back
         </Button>
         <Button 
-          primary 
+          $primary 
           onClick={() => setStep(3)}
           disabled={testing !== null}
         >
           {configuredCount > 0 ? `Continue (${configuredCount} ready)` : 'Continue'}
-          <ArrowRight size={14} style={{ marginLeft: 6 }} />
+          <ArrowRight size={14} />
         </Button>
       </ButtonRow>
     </StepContent>
   );
 
-  // Step 3: Launch Options
   const renderLaunchOptions = () => {
     const workingProviders = selectedProviders.filter(id => providerStatus[id]?.working);
 
@@ -689,7 +883,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
     return (
       <StepContent>
         <Title>
-          <Play size={24} color="#28a745" />
+          <Play size={26} color="#34c759" />
           Ready to Launch!
         </Title>
         <Subtitle>
@@ -698,7 +892,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
 
         {workingProviders.length > 0 ? (
           <InfoBox $type="success">
-            <CheckCircle size={20} color="#28a745" />
+            <CheckCircle size={20} color="#34c759" style={{ flexShrink: 0, marginTop: 2 }} />
             <div>
               <strong>{workingProviders.length} provider{workingProviders.length > 1 ? 's' : ''} configured!</strong>
               {' '}You're ready to use AI-powered agents.
@@ -706,7 +900,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
           </InfoBox>
         ) : (
           <InfoBox $type="warning">
-            <AlertTriangle size={20} color="#856404" />
+            <AlertTriangle size={20} color="#ff9f0a" style={{ flexShrink: 0, marginTop: 2 }} />
             <div>
               No providers configured. You can use the basic terminal, or go back to add API keys.
             </div>
@@ -726,13 +920,15 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
                 );
               }}
             >
-              <Checkbox
-                checked={agentsToLaunch.includes(agent.id)}
-                onChange={() => {}}
-              />
+              <Checkbox 
+                $checked={agentsToLaunch.includes(agent.id)}
+                $color="#34c759"
+              >
+                <CheckCircle size={14} color="white" />
+              </Checkbox>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 'bold' }}>{agent.name}</div>
-                <div style={{ fontSize: 11, color: '#666' }}>{agent.desc}</div>
+                <ProviderName>{agent.name}</ProviderName>
+                <ProviderDesc>{agent.desc}</ProviderDesc>
               </div>
               {agent.always ? (
                 <StatusBadge $status="success">Always Available</StatusBadge>
@@ -747,17 +943,17 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
 
         <ButtonRow>
           <Button onClick={() => setStep(selectedProviders.length > 0 ? 2 : 1)}>
-            <ArrowLeft size={14} style={{ marginRight: 6 }} /> Back
+            <ArrowLeft size={14} /> Back
           </Button>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 10 }}>
             <Button onClick={handleSkip}>
               Just Explore
             </Button>
-            <Button primary onClick={handleComplete}>
+            <Button $primary onClick={handleComplete}>
               {agentsToLaunch.length > 0 
                 ? `Launch ${agentsToLaunch.length} Agent${agentsToLaunch.length > 1 ? 's' : ''}`
                 : 'Start Empty Desktop'}
-              <ArrowRight size={14} style={{ marginLeft: 6 }} />
+              <ArrowRight size={14} />
             </Button>
           </div>
         </ButtonRow>
@@ -769,18 +965,17 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
 
   return (
     <Overlay>
-      <WizardWindow>
-        <WindowHeader>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <img 
-              src="https://win98icons.alexmeub.com/icons/png/key_win-2.png" 
-              alt="setup"
-              style={{ height: 16 }}
-            />
-            CreateSuite Setup Wizard
-          </span>
-        </WindowHeader>
-        <ScrollContent>
+      <Window>
+        <TitleBar>
+          <TrafficLights>
+            <TrafficLight $color="close" onClick={handleSkip} />
+            <TrafficLight $color="minimize" />
+            <TrafficLight $color="maximize" />
+          </TrafficLights>
+          <TitleText>CreateSuite Setup</TitleText>
+          <div style={{ width: 52 }} />
+        </TitleBar>
+        <Content>
           <StepIndicator>
             {Array.from({ length: totalSteps }).map((_, i) => (
               <StepDot 
@@ -791,11 +986,9 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
             ))}
           </StepIndicator>
           
-          <Separator />
-          
           {steps[step]()}
-        </ScrollContent>
-      </WizardWindow>
+        </Content>
+      </Window>
     </Overlay>
   );
 };
