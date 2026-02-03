@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import styled, { createGlobalStyle, ThemeProvider } from 'styled-components';
 import { styleReset, AppBar, Toolbar, Button, MenuList, MenuListItem, Separator } from 'react95';
 import original from 'react95/dist/themes/original';
@@ -10,6 +10,9 @@ import ContentWindow from './components/ContentWindow';
 import GlobalMapWindow from './components/GlobalMapWindow';
 import type { GlobalMapAgent, GlobalMapMessage } from './components/GlobalMapWindow';
 import SystemMonitor from './components/SystemMonitor';
+import LifecycleNotification from './components/LifecycleNotification';
+import WelcomeWizard from './components/WelcomeWizard';
+import DesktopIcons from './components/DesktopIcons';
 import { Monitor, Terminal as TerminalIcon, Cpu } from 'lucide-react';
 
 // UI Command payload type
@@ -97,6 +100,14 @@ const App: React.FC = () => {
   const [agentsMenuOpen, setAgentsMenuOpen] = useState(false);
   const [topZIndex, setTopZIndex] = useState(1);
   const [globalAgents, setGlobalAgents] = useState<GlobalMapAgent[]>([]);
+  
+  // Welcome wizard state
+  const [showWelcome, setShowWelcome] = useState(() => {
+    // Check URL params and localStorage
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('demo') === 'true' || params.get('skipWelcome') === 'true') return false;
+    return !localStorage.getItem('createsuite-welcomed');
+  });
   const [globalMessages, setGlobalMessages] = useState<GlobalMapMessage[]>([]);
 
   const spawnWindow = (
@@ -177,6 +188,68 @@ const App: React.FC = () => {
       spawnWindow('browser', payload.title || 'Web Preview', payload.url);
     }
   };
+
+  // Convoy test function
+  const runConvoyTest = useCallback(() => {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    
+    // Top Left
+    spawnTerminal('Z.ai Agent (GLM 4.7)', 'export OPENCODE_PROVIDER=zai-coding-plan OPENCODE_MODEL=glm-4.7; echo "Starting Z.ai GLM 4.7 Agent..."; opencode', { x: 20, y: 20 });
+    
+    // Top Right
+    setTimeout(() => spawnTerminal('Asset Generator (HF)', 'export OPENCODE_PROVIDER=huggingface OPENCODE_MODEL=stable-diffusion-3.5-large; echo "Starting Asset Generator (Hugging Face)..."; opencode', { x: w - 620, y: 20 }), 200);
+    
+    // Bottom Left
+    setTimeout(() => spawnTerminal('Sisyphus (Claude)', 'export OPENCODE_PROVIDER=anthropic OPENCODE_MODEL=claude-opus-4.5; echo "Starting Sisyphus (Claude)..."; opencode', { x: 20, y: h - 480 }), 400);
+    
+    // Bottom Right
+    setTimeout(() => spawnTerminal('Oracle (OpenAI)', 'export OPENCODE_PROVIDER=openai OPENCODE_MODEL=gpt-5.2; echo "Starting Oracle (OpenAI)..."; opencode', { x: w - 620, y: h - 480 }), 600);
+    
+    setTimeout(() => spawnTerminal('Architect (Kimi-K2.5)', 'export OPENCODE_PROVIDER=openai OPENCODE_MODEL=kimi-k2.5; echo "Starting Architect (Kimi-K2.5) - Deep System Design Specialist..."; opencode', { x: w / 2 - 310, y: h / 2 - 240 }), 800);
+  }, []);
+
+  // Handle welcome wizard completion
+  const handleWelcomeComplete = useCallback((action?: string) => {
+    setShowWelcome(false);
+    
+    // Hide the loading screen
+    const loading = document.getElementById('loading');
+    if (loading) loading.classList.add('hidden');
+    
+    // Perform the selected action
+    if (action === 'terminal') {
+      spawnTerminal();
+    } else if (action === 'village') {
+      spawnGlobalMap();
+    } else if (action === 'demo') {
+      runConvoyTest();
+    }
+  }, [runConvoyTest]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+N = New Terminal
+      if (e.ctrlKey && e.key === 'n') {
+        e.preventDefault();
+        spawnTerminal();
+      }
+      // Ctrl+Shift+N = Agent Village
+      if (e.ctrlKey && e.shiftKey && e.key === 'N') {
+        e.preventDefault();
+        spawnGlobalMap();
+      }
+      // Escape = Close start menu
+      if (e.key === 'Escape') {
+        setStartMenuOpen(false);
+        setAgentsMenuOpen(false);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -389,6 +462,32 @@ const App: React.FC = () => {
     <ThemeProvider theme={original}>
       <GlobalStyles />
       <Desktop>
+        {/* Welcome Wizard for first-time users */}
+        {showWelcome && (
+          <WelcomeWizard 
+            onComplete={handleWelcomeComplete}
+            onSkip={() => {
+              setShowWelcome(false);
+              const loading = document.getElementById('loading');
+              if (loading) loading.classList.add('hidden');
+            }}
+          />
+        )}
+        
+        {/* Desktop Icons for quick access */}
+        <DesktopIcons
+          onNewTerminal={spawnTerminal}
+          onAgentVillage={spawnGlobalMap}
+          onSystemMonitor={() => spawnWindow('system-monitor', 'System Monitor')}
+          onConvoyTest={runConvoyTest}
+        />
+        
+        {/* Lifecycle Notification - Always rendered at top */}
+        <LifecycleNotification 
+          onKeepWorking={() => console.log('User clicked keep working')}
+          onViewResults={() => console.log('User clicked view results')}
+        />
+        
         {windows.map(win => {
           if (win.type === 'terminal') {
             return (
@@ -538,24 +637,7 @@ const App: React.FC = () => {
                       Agent Village
                     </MenuListItem>
                     <Separator />
-                    <MenuListItem onClick={() => {
-                      const w = window.innerWidth;
-                      const h = window.innerHeight;
-                      
-                      // Top Left
-                      spawnTerminal('Z.ai Agent (GLM 4.7)', 'export OPENCODE_PROVIDER=zai-coding-plan OPENCODE_MODEL=glm-4.7; echo "Starting Z.ai GLM 4.7 Agent..."; opencode', { x: 20, y: 20 });
-                      
-                      // Top Right
-                      setTimeout(() => spawnTerminal('Asset Generator (HF)', 'export OPENCODE_PROVIDER=huggingface OPENCODE_MODEL=stable-diffusion-3.5-large; echo "Starting Asset Generator (Hugging Face)..."; opencode', { x: w - 620, y: 20 }), 200);
-                      
-                      // Bottom Left
-                      setTimeout(() => spawnTerminal('Sisyphus (Claude)', 'export OPENCODE_PROVIDER=anthropic OPENCODE_MODEL=claude-opus-4.5; echo "Starting Sisyphus (Claude)..."; opencode', { x: 20, y: h - 480 }), 400);
-                      
-                      // Bottom Right
-                      setTimeout(() => spawnTerminal('Oracle (OpenAI)', 'export OPENCODE_PROVIDER=openai OPENCODE_MODEL=gpt-5.2; echo "Starting Oracle (OpenAI)..."; opencode', { x: w - 620, y: h - 480 }), 600);
-                      
-                      setTimeout(() => spawnTerminal('Architect (Kimi-K2.5)', 'export OPENCODE_PROVIDER=openai OPENCODE_MODEL=kimi-k2.5; echo "Starting Architect (Kimi-K2.5) - Deep System Design Specialist..."; opencode', { x: w / 2 - 310, y: h / 2 - 240 }), 800);
-                    }}>
+                    <MenuListItem onClick={runConvoyTest}>
                       <div style={{ display: 'flex', alignItems: 'center' }}>
                         <img
                           src="https://win98icons.alexmeub.com/icons/png/briefcase-2.png"

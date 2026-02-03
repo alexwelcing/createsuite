@@ -1,48 +1,93 @@
-# Agent UI - The Command Center
+# 🖥️ CreateSuite Agent UI
 
-A Windows 95-styled command center for your agents, built with React, Vite, and xterm.js.
+**Your AI agents deserve a proper command center.**
 
-## Features
-- 🪟 **Draggable Terminal Windows**: Manage multiple agent sessions in a classic desktop environment.
-- 🖥️ **Full Terminal Emulation**: Powered by xterm.js and node-pty for a real shell experience.
-- 🎨 **Authentic 90s Aesthetic**: Styled with react95.
+A nostalgic Windows 95-styled desktop environment for orchestrating AI coding agents. Run Claude, GPT, and other AI assistants in parallel terminal sessions, all from one delightfully retro interface.
 
-## Getting Started
+![CreateSuite Screenshot](public/og-image.svg)
 
-### Prerequisites
-- Node.js (v18+)
+## ✨ Features
 
-### Installation
-1. Navigate to the `agent-ui` directory:
-   ```bash
-   cd agent-ui
-   ```
-2. Install dependencies (if you haven't already):
-   ```bash
-   npm install
-   cd server && npm install
-   ```
+| Feature | Description |
+|---------|-------------|
+| 🪟 **Multi-Window Desktop** | Drag, resize, and manage multiple terminal windows |
+| 🤖 **Multi-Agent Support** | Run Claude, GPT, Gemini, and more in parallel |
+| ⏱️ **Smart Lifecycle** | Auto-shutdown when work completes (saves 💰!) |
+| 🎨 **Windows 95 Aesthetic** | Because nostalgia is powerful |
+| 🖥️ **Full Terminal** | Real shell with xterm.js + node-pty |
+| 🌐 **Deploy Anywhere** | Fly.io, Render, or run locally |
 
-### Running the App
-You need to run both the frontend and the backend.
+## 🚀 Quick Start
 
-1. **Start the Backend Server** (Terminal 1):
-   ```bash
-   cd agent-ui/server
-   node index.js
-   ```
-   *The server runs on port 3001.*
+### One Command (Development)
 
-2. **Start the Frontend** (Terminal 2):
-   ```bash
-   cd agent-ui
-   npm run dev
-   ```
-   *The frontend runs on port 5173.*
+```bash
+# In the agent-ui directory
+npm install && npm run dev
 
-3. Open your browser to `http://localhost:5173`.
+# In another terminal
+cd server && npm install && node index.js
+```
 
-## Usage
-- Click **Start** -> **New Terminal** to spawn a new shell.
-- Drag windows by their blue title bars.
-- Type commands directly into the terminal windows.
+Then open **http://localhost:5173** — you'll see a welcome wizard! 🎉
+
+### Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+N` | New Terminal |
+| `Ctrl+Shift+N` | Agent Village |
+| `Escape` | Close menus |
+
+## 🚢 Deploy to Fly.io
+
+```bash
+# First time
+fly launch
+
+# Subsequent deploys
+./scripts/fly-deploy.sh deploy
+```
+
+See [Deployment Guide](../docs/guides/DEPLOY_RENDER.md) for Render and other platforms.
+
+## 🧩 Project Structure
+
+```
+agent-ui/
+├── src/
+│   ├── App.tsx              # Main desktop app
+│   ├── components/
+│   │   ├── TerminalWindow   # xterm.js terminal
+│   │   ├── WelcomeWizard    # First-run experience
+│   │   ├── DesktopIcons     # Quick-access icons
+│   │   ├── LifecycleNotification  # Auto-shutdown UI
+│   │   └── ...
+├── server/
+│   ├── index.js             # Express + Socket.IO server
+│   └── lifecycleManager.js  # Smart container lifecycle
+├── public/
+│   └── createsuite.svg      # Favicon
+└── fly.toml                 # Fly.io config
+```
+
+## 🔧 Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | Server port | `3001` |
+| `ENABLE_PTY` | Enable terminal | `true` |
+| `AUTO_SHUTDOWN` | Auto-shutdown when idle | `true` |
+| `GRACE_PERIOD_MS` | Grace period before shutdown | `900000` (15 min) |
+| `WEBHOOK_URL` | Slack/Discord notifications | - |
+| `GITHUB_TOKEN` | For agent-triggered rebuilds | - |
+
+## 📖 Documentation
+
+- [Main README](../README.md) - Full CreateSuite documentation
+- [Architecture](../docs/architecture/ARCHITECTURE.md) - System design
+- [Deployment](../docs/guides/DEPLOY_RENDER.md) - Production deployment
+
+## 🙌 Contributing
+
+PRs welcome! Check out the [development guide](../docs/guides/GETTING_STARTED.md).

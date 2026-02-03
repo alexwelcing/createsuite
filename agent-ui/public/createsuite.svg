@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Background square with Windows 95 style border -->
+  <rect x="2" y="2" width="96" height="96" fill="#008080" rx="8"/>
+  <rect x="4" y="4" width="92" height="92" fill="#000080" rx="6"/>
+  
+  <!-- Stacked layers representing agents/terminals -->
+  <g transform="translate(20, 15)">
+    <!-- Back terminal -->
+    <rect x="20" y="0" width="45" height="35" fill="#c0c0c0" stroke="#dfdfdf" stroke-width="2"/>
+    <rect x="20" y="0" width="45" height="12" fill="#000080"/>
+    <rect x="24" y="14" width="37" height="17" fill="#000"/>
+    <text x="28" y="27" fill="#00ff00" font-size="10" font-family="monospace">&gt;_</text>
+    
+    <!-- Middle terminal -->
+    <rect x="10" y="15" width="45" height="35" fill="#c0c0c0" stroke="#dfdfdf" stroke-width="2"/>
+    <rect x="10" y="15" width="45" height="12" fill="#000080"/>
+    <rect x="14" y="29" width="37" height="17" fill="#000"/>
+    <text x="18" y="42" fill="#00ff00" font-size="10" font-family="monospace">&gt;_</text>
+    
+    <!-- Front terminal -->
+    <rect x="0" y="30" width="45" height="35" fill="#c0c0c0" stroke="#dfdfdf" stroke-width="2"/>
+    <rect x="0" y="30" width="45" height="12" fill="#000080"/>
+    <rect x="4" y="44" width="37" height="17" fill="#000"/>
+    <text x="8" y="57" fill="#00ff00" font-size="10" font-family="monospace">&gt;_</text>
+  </g>
+  
+  <!-- Sparkle/AI indicator -->
+  <circle cx="78" cy="22" r="12" fill="#ffdd00"/>
+  <text x="78" y="27" text-anchor="middle" fill="#000080" font-size="16" font-weight="bold">✦</text>
+</svg>

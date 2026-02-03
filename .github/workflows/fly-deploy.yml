@@ -1,0 +1,149 @@
+name: Deploy to Fly.io
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'agent-ui/**'
+      - '.github/workflows/fly-deploy.yml'
+  
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for deployment'
+        required: false
+        default: 'Manual deployment'
+  
+  # Allow trigger from API (for agent-initiated rebuilds)
+  repository_dispatch:
+    types: [rebuild-request]
+
+env:
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+jobs:
+  deploy:
+    name: Deploy to Fly.io
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Set deployment metadata
+        id: meta
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "timestamp=$(date -u +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
+          echo "reason=${{ github.event.inputs.reason || github.event.client_payload.reason || 'Push to main' }}" >> $GITHUB_OUTPUT
+          
+      - name: Setup Fly.io CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+        
+      - name: Deploy to Fly.io
+        working-directory: agent-ui
+        run: |
+          flyctl deploy --remote-only \
+            --build-arg GIT_SHA=${{ steps.meta.outputs.sha_short }} \
+            --build-arg BUILD_TIME=${{ steps.meta.outputs.timestamp }} \
+            --build-arg DEPLOY_REASON="${{ steps.meta.outputs.reason }}"
+            
+      - name: Verify deployment
+        working-directory: agent-ui
+        run: |
+          # Wait for health check to pass
+          echo "Waiting for deployment to be healthy..."
+          sleep 10
+          
+          # Check health endpoint
+          HEALTH_URL="https://createsuite-agent-ui.fly.dev/api/health"
+          for i in {1..10}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Deployment healthy!"
+              curl -s "$HEALTH_URL" | jq .
+              exit 0
+            fi
+            echo "Attempt $i: Status $STATUS, waiting..."
+            sleep 5
+          done
+          
+          echo "❌ Deployment health check failed"
+          exit 1
+          
+      - name: Send deployment notification
+        if: always()
+        run: |
+          # Only send if WEBHOOK_URL is configured
+          if [ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            STATUS="${{ job.status }}"
+            COLOR=$([ "$STATUS" = "success" ] && echo "#00AA00" || echo "#AA0000")
+            ICON=$([ "$STATUS" = "success" ] && echo "✅" || echo "❌")
+            
+            curl -X POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "attachments": [{
+                  "color": "'"$COLOR"'",
+                  "blocks": [
+                    {
+                      "type": "header",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "'"$ICON"' CreateSuite Deployment '"$STATUS"'",
+                        "emoji": true
+                      }
+                    },
+                    {
+                      "type": "section",
+                      "fields": [
+                        { "type": "mrkdwn", "text": "*Commit:*\n`${{ steps.meta.outputs.sha_short }}`" },
+                        { "type": "mrkdwn", "text": "*Branch:*\n`${{ github.ref_name }}`" },
+                        { "type": "mrkdwn", "text": "*Reason:*\n${{ steps.meta.outputs.reason }}" },
+                        { "type": "mrkdwn", "text": "*Triggered by:*\n${{ github.actor }}" }
+                      ]
+                    },
+                    {
+                      "type": "actions",
+                      "elements": [
+                        {
+                          "type": "button",
+                          "text": { "type": "plain_text", "text": "🌐 Open App", "emoji": true },
+                          "url": "https://createsuite-agent-ui.fly.dev"
+                        },
+                        {
+                          "type": "button",
+                          "text": { "type": "plain_text", "text": "📋 View Run", "emoji": true },
+                          "url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                        }
+                      ]
+                    }
+                  ]
+                }]
+              }'
+          fi
+
+  # Notify the running container about successful rebuild
+  notify-container:
+    name: Notify Container
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: success() && github.event_name == 'repository_dispatch'
+    
+    steps:
+      - name: Notify container of rebuild completion
+        run: |
+          # If the rebuild was triggered by an agent, notify the new container
+          SESSION_ID="${{ github.event.client_payload.session_id }}"
+          
+          if [ -n "$SESSION_ID" ]; then
+            curl -X POST "https://createsuite-agent-ui.fly.dev/api/lifecycle/notify" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "event": "rebuild-complete",
+                "message": "Container rebuilt successfully from commit ${{ github.sha }}",
+                "resultsUrl": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              }'
+          fi
