@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: createsuite-agent-ui
+    env: node
+    plan: free
+    buildCommand: |
+      cd agent-ui
+      npm ci
+      npm run build
+      cd server
+      npm ci
+    startCommand: node agent-ui/server/index.js
+    healthCheckPath: /api/skills
+    envVars:
+      - key: NODE_VERSION
+        value: 20.11.0
+      - key: NODE_ENV
+        value: production

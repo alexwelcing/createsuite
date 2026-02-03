@@ -74,6 +74,26 @@ npm run build
 npm link
 ```
 
+## Deployment
+
+CreateSuite is ready to deploy to the cloud! We include a `render.yaml` Blueprint for instant deployment on [Render](https://render.com).
+
+### Deploy to Render
+
+1. Fork or copy this repository to the GitHub account connected to Render.
+2. Log in to the [Render Dashboard](https://dashboard.render.com).
+3. Click **New +** and select **Blueprint**.
+4. Choose your forked repo.
+5. Click **Apply**.
+
+Render will automatically build the `agent-ui` frontend and start the backend server.
+
+For a step-by-step solo deploy flow, see [docs/guides/DEPLOY_RENDER.md](docs/guides/DEPLOY_RENDER.md).
+
+Production deployments disable terminal spawn and `/workspace` static serving unless explicitly enabled. See [docs/guides/DEPLOY_RENDER.md](docs/guides/DEPLOY_RENDER.md).
+
+Optional security: API token auth, Basic Auth for the UI, and rate limiting are documented in [docs/guides/DEPLOY_RENDER.md](docs/guides/DEPLOY_RENDER.md).
+
 ## Quick Start
 
 ### 1. Initialize Workspace
@@ -211,6 +231,7 @@ BLOCKED (if issues arise)
 ```bash
 cs init [options]              # Initialize workspace
 cs status                      # Show workspace status
+cs ui [options]                # Start the Agent UI dashboard
 cs tour                        # Open the video tour and landing page
 ```
 

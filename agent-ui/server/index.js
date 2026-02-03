@@ -4,29 +4,86 @@ const { Server } = require('socket.io');
 const pty = require('node-pty');
 const os = require('os');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
+const basicAuth = require('basic-auth');
 const { execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const { generateAllSprites } = require('./spriteGenerator');
 
 const app = express();
-app.use(cors());
+const isProduction = process.env.NODE_ENV === 'production';
+const corsOrigin = process.env.CORS_ORIGIN || (isProduction ? false : '*');
+const apiToken = process.env.API_TOKEN || '';
+const basicAuthUser = process.env.BASIC_AUTH_USER || '';
+const basicAuthPass = process.env.BASIC_AUTH_PASS || '';
+app.use(cors({
+  origin: corsOrigin,
+  methods: ['GET', 'POST']
+}));
 app.use(express.json());
+
+const limiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false
+});
+
+if (basicAuthUser && basicAuthPass) {
+  app.use((req, res, next) => {
+    const credentials = basicAuth(req);
+    if (!credentials || credentials.name !== basicAuthUser || credentials.pass !== basicAuthPass) {
+      res.set('WWW-Authenticate', 'Basic realm="CreateSuite"');
+      return res.status(401).send('Authentication required');
+    }
+    return next();
+  });
+}
+
+if (apiToken) {
+  app.use('/api', (req, res, next) => {
+    const header = req.headers.authorization || '';
+    const bearer = header.startsWith('Bearer ') ? header.slice(7) : '';
+    const token = bearer || req.query.token;
+    if (token !== apiToken) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+    return next();
+  });
+}
+
+app.use('/api', limiter);
 
 // Serve static files from the React app build directory
 const distPath = path.join(__dirname, '../dist');
 app.use(express.static(distPath));
 
-// Serve project workspace files (allows accessing generated assets)
-app.use('/workspace', express.static(process.cwd()));
+// Serve project workspace files (disabled by default in production)
+const enableWorkspaceStatic = process.env.ENABLE_WORKSPACE_STATIC === 'true';
+if (!isProduction || enableWorkspaceStatic) {
+  app.use('/workspace', express.static(process.cwd()));
+}
 
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: '*',
+    origin: corsOrigin,
     methods: ['GET', 'POST']
   }
 });
+
+if (apiToken) {
+  io.use((socket, next) => {
+    const authHeader = socket.handshake.headers?.authorization || '';
+    const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    const token = bearer || socket.handshake.auth?.token || socket.handshake.query?.token;
+    if (token !== apiToken) {
+      return next(new Error('Unauthorized'));
+    }
+    return next();
+  });
+}
 
 const SHELL = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
 
@@ -117,6 +174,147 @@ app.get('/api/providers', (req, res) => {
   }
 });
 
+// POST /api/providers/save - Save selected providers from UI wizard
+app.post('/api/providers/save', (req, res) => {
+  try {
+    const { providers, claudeTier } = req.body;
+    if (!Array.isArray(providers)) {
+      return res.status(400).json({ success: false, error: 'providers array required' });
+    }
+
+    const providersPath = path.join(process.cwd(), '.createsuite', 'providers.json');
+    const providersDir = path.dirname(providersPath);
+    if (!fs.existsSync(providersDir)) {
+      fs.mkdirSync(providersDir, { recursive: true });
+    }
+
+    let existing = [];
+    if (fs.existsSync(providersPath)) {
+      try {
+        const existingData = JSON.parse(fs.readFileSync(providersPath, 'utf-8'));
+        existing = existingData.providers || [];
+      } catch {
+        existing = [];
+      }
+    }
+
+    const existingByProvider = new Map(existing.map((p) => [p.provider, p]));
+    const claudeModel = claudeTier === 'Max (20x mode)'
+      ? 'anthropic/claude-opus-4.5-max20'
+      : 'anthropic/claude-opus-4.5';
+
+    const modelMap = {
+      'zai-coding-plan': 'zai-coding-plan/glm-4.7',
+      'anthropic': claudeModel,
+      'openai': 'openai/gpt-5.2',
+      'minimax': 'minimax/minimax-2.1',
+      'google': 'google/gemini-3-pro',
+      'github-copilot': 'github-copilot/claude-opus-4.5',
+      'opencode-zen': 'opencode/claude-opus-4.5',
+      'huggingface': 'huggingface/stable-diffusion-3.5-large'
+    };
+
+    const updatedProviders = providers.map((provider) => {
+      const existingProvider = existingByProvider.get(provider);
+      return {
+        provider,
+        enabled: true,
+        authenticated: existingProvider?.authenticated || false,
+        model: modelMap[provider] || existingProvider?.model,
+        lastValidated: existingProvider?.lastValidated || undefined
+      };
+    });
+
+    fs.writeFileSync(providersPath, JSON.stringify({
+      providers: updatedProviders,
+      updatedAt: new Date().toISOString()
+    }, null, 2));
+
+    res.json({ success: true, data: updatedProviders });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/providers/credentials - Save credentials securely
+app.post('/api/providers/credentials', (req, res) => {
+  try {
+    const { credentials } = req.body;
+    if (!credentials || typeof credentials !== 'object') {
+      return res.status(400).json({ success: false, error: 'credentials object required' });
+    }
+
+    const credPath = path.join(process.cwd(), '.createsuite', 'provider-credentials.json');
+    const credDir = path.dirname(credPath);
+    if (!fs.existsSync(credDir)) {
+      fs.mkdirSync(credDir, { recursive: true });
+    }
+
+    let existing = {};
+    if (fs.existsSync(credPath)) {
+      try {
+        existing = JSON.parse(fs.readFileSync(credPath, 'utf-8'));
+      } catch {
+        existing = {};
+      }
+    }
+
+    const updated = { ...existing };
+    Object.entries(credentials).forEach(([provider, value]) => {
+      if (typeof value === 'string' && value.trim().length > 0) {
+        updated[provider] = {
+          value: value.trim(),
+          updatedAt: new Date().toISOString()
+        };
+      }
+    });
+
+    fs.writeFileSync(credPath, JSON.stringify(updated, null, 2), { mode: 0o600 });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/providers/mark-authenticated - Update auth status
+app.post('/api/providers/mark-authenticated', (req, res) => {
+  try {
+    const { authenticatedProviders } = req.body;
+    if (!Array.isArray(authenticatedProviders)) {
+      return res.status(400).json({ success: false, error: 'authenticatedProviders array required' });
+    }
+
+    const providersPath = path.join(process.cwd(), '.createsuite', 'providers.json');
+    if (!fs.existsSync(providersPath)) {
+      return res.status(200).json({ success: true, data: [] });
+    }
+
+    const config = JSON.parse(fs.readFileSync(providersPath, 'utf-8'));
+    const updatedProviders = (config.providers || []).map((provider) => {
+      if (authenticatedProviders.includes(provider.provider)) {
+        return {
+          ...provider,
+          authenticated: true,
+          lastValidated: new Date().toISOString()
+        };
+      }
+      return {
+        ...provider,
+        authenticated: false
+      };
+    });
+
+    fs.writeFileSync(providersPath, JSON.stringify({
+      providers: updatedProviders,
+      updatedAt: new Date().toISOString()
+    }, null, 2));
+
+    res.json({ success: true, data: updatedProviders });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST /api/activate - Activate a provider with a task
 app.post('/api/activate', (req, res) => {
   try {
@@ -175,12 +373,17 @@ try {
   console.warn('⚠️  Warning: opencode command not found in PATH. Agents may not start correctly.');
 }
 
+const enablePty = process.env.ENABLE_PTY === 'true';
 io.on('connection', (socket) => {
   console.log('Client connected', socket.id);
   
   let ptyProcess = null;
 
   socket.on('spawn', ({ cols, rows }) => {
+    if (isProduction && !enablePty) {
+      socket.emit('output', '\r\nPTY disabled on this deployment. Set ENABLE_PTY=true to enable.\r\n');
+      return;
+    }
     if (ptyProcess) {
       ptyProcess.kill();
     }

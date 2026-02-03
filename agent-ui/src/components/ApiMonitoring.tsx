@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
+import { apiUrl } from '../utils/api';
 
 interface ProviderData {
   id: string;
@@ -171,8 +172,8 @@ const ApiMonitoring: React.FC = () => {
     const fetchData = async () => {
       try {
         const [providersRes, tasksRes] = await Promise.all([
-          fetch('http://localhost:3001/api/providers'),
-          fetch('http://localhost:3001/api/tasks')
+          fetch(apiUrl('/api/providers')),
+          fetch(apiUrl('/api/tasks'))
         ]);
 
         const providersData = await providersRes.json();
@@ -208,18 +209,11 @@ const ApiMonitoring: React.FC = () => {
     setDraggedProvider(null);
   };
 
-  const handleProviderDrop = (skill: string) => {
-    if (!draggedProvider) return;
-
-    setSelectedSkill(skill);
-    setShowTaskSelector(true);
-  };
-
   const handleTaskSelect = async (task: TaskData) => {
     if (!draggedProvider || !selectedSkill) return;
 
     try {
-      const response = await fetch('http://localhost:3001/api/activate', {
+      const response = await fetch(apiUrl('/api/activate'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -288,7 +282,7 @@ const ApiMonitoring: React.FC = () => {
         tasks.map((task) => (
           <TaskItem
             key={task.id}
-            selected={selectedTask === task.id}
+            $selected={selectedTask === task.id}
             onClick={() => {
               if (draggedProvider) {
                 handleTaskSelect(task);
@@ -303,7 +297,7 @@ const ApiMonitoring: React.FC = () => {
             onDrop={() => draggedProvider && handleTaskSelect(task)}
           >
             <TaskTitle>{task.title}</TaskTitle>
-            <TaskMeta>
+            <TaskMeta $selected={selectedTask === task.id}>
               Status: {task.status} | Priority: {task.priority} | Tags: {task.tags.join(', ')}
             </TaskMeta>
           </TaskItem>
@@ -327,11 +321,11 @@ const ApiMonitoring: React.FC = () => {
               {tasks.map((task) => (
                 <TaskItem
                   key={task.id}
-                  selected={selectedTask === task.id}
+                  $selected={selectedTask === task.id}
                   onClick={() => handleTaskSelect(task)}
                 >
                   <TaskTitle>{task.title}</TaskTitle>
-                  <TaskMeta>
+                  <TaskMeta $selected={selectedTask === task.id}>
                     {task.description.substring(0, 60)}
                     {task.description.length > 60 ? '...' : ''}
                   </TaskMeta>

@@ -52,6 +52,7 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({
   onClose,
   onFocus
 }) => {
+  void onClose;
   const [activeTab, setActiveTab] = useState<'skills' | 'apis'>('skills');
   const [position, setPosition] = useState(initialPosition);
   const [isDragging, setIsDragging] = useState(false);
