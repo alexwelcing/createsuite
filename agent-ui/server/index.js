@@ -11,6 +11,7 @@ const path = require('path');
 const fs = require('fs');
 const { generateAllSprites } = require('./spriteGenerator');
 const { LifecycleManager } = require('./lifecycleManager');
+const { AgentSpawner, GitAgentSpawner, AGENT_CONFIGS } = require('./agentSpawner');
 
 const app = express();
 const isProduction = process.env.NODE_ENV === 'production';
@@ -77,6 +78,15 @@ const io = new Server(server, {
 // Initialize lifecycle manager for intelligent container management
 const lifecycle = new LifecycleManager(io, server);
 lifecycle.setupSignalHandlers();
+
+// Initialize agent spawner for dynamic Fly.io machine spawning
+const agentSpawner = new AgentSpawner(io);
+const gitAgentSpawner = new GitAgentSpawner(io);
+
+// Cleanup agents on shutdown
+process.on('SIGTERM', async () => {
+  await agentSpawner.cleanup();
+});
 
 if (apiToken) {
   io.use((socket, next) => {
@@ -542,6 +552,144 @@ app.post('/api/lifecycle/notify', async (req, res) => {
     lifecycle.io.emit(`lifecycle:${event}`, { message, resultsUrl });
     
     res.json({ success: true, message: 'Notification sent' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==================== AGENT SPAWNING API ====================
+
+// GET /api/agents/configs - Get available agent configurations
+app.get('/api/agents/configs', (req, res) => {
+  res.json({ 
+    success: true, 
+    data: agentSpawner.getAgentConfigs(),
+    flyEnabled: !!process.env.FLY_API_TOKEN
+  });
+});
+
+// GET /api/agents/active - List currently running agents
+app.get('/api/agents/active', (req, res) => {
+  res.json({ 
+    success: true, 
+    data: agentSpawner.getActiveAgents()
+  });
+});
+
+// POST /api/agents/spawn - Spawn a new agent machine
+app.post('/api/agents/spawn', async (req, res) => {
+  try {
+    const { agentType, apiKey, options = {} } = req.body;
+    
+    if (!agentType) {
+      return res.status(400).json({ success: false, error: 'agentType required' });
+    }
+    
+    // Get API key from request or from stored credentials
+    let effectiveApiKey = apiKey;
+    if (!effectiveApiKey) {
+      const credPath = path.join(process.cwd(), '.createsuite', 'provider-credentials.json');
+      if (fs.existsSync(credPath)) {
+        try {
+          const creds = JSON.parse(fs.readFileSync(credPath, 'utf-8'));
+          const providerMapping = {
+            claude: 'anthropic',
+            openai: 'openai', 
+            gemini: 'google',
+            huggingface: 'huggingface'
+          };
+          const provider = providerMapping[agentType] || agentType;
+          effectiveApiKey = creds[provider]?.value;
+        } catch (e) {
+          console.error('Error reading credentials:', e);
+        }
+      }
+    }
+    
+    if (!effectiveApiKey) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `No API key found for ${agentType}. Configure in Setup Wizard or provide apiKey.` 
+      });
+    }
+    
+    const agent = await agentSpawner.spawnAgent(agentType, effectiveApiKey, options);
+    
+    res.json({ success: true, data: agent });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/agents/spawn-for-task - Spawn an agent for a specific GitHub task
+app.post('/api/agents/spawn-for-task', async (req, res) => {
+  try {
+    const { agentType, repoUrl, taskDescription, githubToken } = req.body;
+    
+    if (!repoUrl || !taskDescription) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'repoUrl and taskDescription required' 
+      });
+    }
+    
+    // Get API key from stored credentials
+    const credPath = path.join(process.cwd(), '.createsuite', 'provider-credentials.json');
+    let apiKey = null;
+    if (fs.existsSync(credPath)) {
+      try {
+        const creds = JSON.parse(fs.readFileSync(credPath, 'utf-8'));
+        const providerMapping = { claude: 'anthropic', openai: 'openai', gemini: 'google' };
+        const provider = providerMapping[agentType || 'claude'] || 'anthropic';
+        apiKey = creds[provider]?.value;
+      } catch (e) {
+        console.error('Error reading credentials:', e);
+      }
+    }
+    
+    if (!apiKey) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'No API key configured. Use Setup Wizard first.' 
+      });
+    }
+    
+    const agent = await gitAgentSpawner.spawnForTask({
+      agentType: agentType || 'claude',
+      apiKey,
+      repoUrl,
+      taskDescription,
+      githubToken: githubToken || process.env.GITHUB_TOKEN
+    });
+    
+    res.json({ success: true, data: agent });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/agents/stop - Stop an agent
+app.post('/api/agents/stop', async (req, res) => {
+  try {
+    const { agentId } = req.body;
+    
+    if (!agentId) {
+      return res.status(400).json({ success: false, error: 'agentId required' });
+    }
+    
+    await agentSpawner.stopAgent(agentId);
+    
+    res.json({ success: true, message: `Agent ${agentId} stopped` });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/agents/stop-all - Stop all running agents
+app.post('/api/agents/stop-all', async (req, res) => {
+  try {
+    await agentSpawner.cleanup();
+    res.json({ success: true, message: 'All agents stopped' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

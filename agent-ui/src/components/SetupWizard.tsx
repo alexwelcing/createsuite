@@ -389,7 +389,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
   };
 
   const saveConfiguration = async () => {
-    // Save to backend
+    // Save providers config
     try {
       await fetch('/api/providers/save', {
         method: 'POST',
@@ -402,6 +402,32 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
           }))
         })
       });
+      
+      // Save credentials (API keys)
+      const credentials: Record<string, string> = {};
+      selectedProviders.forEach(id => {
+        if (apiKeys[id]) {
+          credentials[id] = apiKeys[id];
+        }
+      });
+      
+      if (Object.keys(credentials).length > 0) {
+        await fetch('/api/providers/credentials', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credentials })
+        });
+      }
+      
+      // Mark authenticated providers
+      const authenticated = selectedProviders.filter(id => providerStatus[id]?.working);
+      if (authenticated.length > 0) {
+        await fetch('/api/providers/mark-authenticated', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ authenticatedProviders: authenticated })
+        });
+      }
     } catch (e) {
       console.error('Failed to save config:', e);
     }
@@ -410,6 +436,34 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
   const handleComplete = async () => {
     await saveConfiguration();
     localStorage.setItem('createsuite-setup-complete', 'true');
+    
+    // Check if Fly.io spawning is available
+    let flyEnabled = false;
+    try {
+      const configRes = await fetch('/api/agents/configs');
+      const configData = await configRes.json();
+      flyEnabled = configData.flyEnabled;
+    } catch (e) {
+      console.log('Fly.io spawning not available');
+    }
+    
+    // If we have agents to launch and Fly.io is enabled, spawn them as machines
+    if (flyEnabled && agentsToLaunch.length > 0) {
+      for (const agentId of agentsToLaunch) {
+        if (agentId === 'terminal') continue; // Basic terminal handled by UI
+        
+        try {
+          await fetch('/api/agents/spawn', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agentType: agentId })
+          });
+        } catch (e) {
+          console.error(`Failed to spawn agent ${agentId}:`, e);
+        }
+      }
+    }
+    
     onComplete({ 
       providers: selectedProviders.filter(id => providerStatus[id]?.working),
       launchAgents: agentsToLaunch 
