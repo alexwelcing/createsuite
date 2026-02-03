@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useCallback, useRef } from 'react';
 import styled from 'styled-components';
 import { Window, WindowHeader, WindowContent, Button } from 'react95';
 import Draggable from 'react-draggable';
@@ -33,6 +33,8 @@ interface GlobalMapWindowProps {
   onFocus: (id: string) => void;
   agents: GlobalMapAgent[];
   messages: GlobalMapMessage[];
+  maxAgentSkills?: number;
+  maxRecentMessages?: number;
 }
 
 const StyledWindow = styled(Window)`
@@ -128,6 +130,11 @@ const EmptyState = styled.div`
   margin-top: 8px;
 `;
 
+const DEFAULT_MAX_AGENT_SKILLS = 2;
+const DEFAULT_MAX_RECENT_MESSAGES = 5;
+const EMPTY_AGENTS_MESSAGE = 'No agents connected.';
+const FALLBACK_MESSAGE_TITLE = 'Untitled';
+
 const GlobalMapWindow: React.FC<GlobalMapWindowProps> = ({
   id,
   title,
@@ -136,9 +143,19 @@ const GlobalMapWindow: React.FC<GlobalMapWindowProps> = ({
   onClose,
   onFocus,
   agents,
-  messages
+  messages,
+  maxAgentSkills,
+  maxRecentMessages
 }) => {
+  const resolvedMaxAgentSkills = maxAgentSkills ?? DEFAULT_MAX_AGENT_SKILLS;
+  const resolvedMaxRecentMessages = maxRecentMessages ?? DEFAULT_MAX_RECENT_MESSAGES;
   const nodeRef = useRef<HTMLDivElement>(null);
+  const hasAgents = agents.length > 0;
+  const emptyAgentsState = <EmptyState>{EMPTY_AGENTS_MESSAGE}</EmptyState>;
+  const getMessageTitle = useCallback(
+    (message: GlobalMapMessage) => message.snippet || message.subject || FALLBACK_MESSAGE_TITLE,
+    []
+  );
 
   return (
     <Draggable
@@ -160,7 +177,7 @@ const GlobalMapWindow: React.FC<GlobalMapWindowProps> = ({
           </WindowHeader>
           <StyledWindowContent>
             <MapArea>
-              {agents.length === 0 && <EmptyState>No active agents.</EmptyState>}
+              {!hasAgents && emptyAgentsState}
               {agents.map((agent) => (
                 <AgentNode
                   key={agent.id}
@@ -175,20 +192,24 @@ const GlobalMapWindow: React.FC<GlobalMapWindowProps> = ({
             <Sidebar>
               <Panel>
                 <PanelTitle>Active Agents</PanelTitle>
-                {agents.length === 0 && <EmptyState>No agents connected.</EmptyState>}
+                {!hasAgents && emptyAgentsState}
                 {agents.map((agent) => (
                   <div key={agent.id} style={{ marginBottom: 6 }}>
                     <div>{agent.name}</div>
-                    <div style={{ color: '#404040' }}>{agent.skills.slice(0, 2).join(', ') || 'No skills'}</div>
+                    <div style={{ color: '#404040' }}>
+                      {agent.skills.length > 0
+                        ? agent.skills.slice(0, resolvedMaxAgentSkills).join(', ')
+                        : 'No skills'}
+                    </div>
                   </div>
                 ))}
               </Panel>
               <Panel>
                 <PanelTitle>Recent Messages</PanelTitle>
                 {messages.length === 0 && <EmptyState>No messages yet.</EmptyState>}
-                {messages.slice(0, 5).map((message) => (
+                {messages.slice(0, resolvedMaxRecentMessages).map((message) => (
                   <div key={message.id} style={{ marginBottom: 6 }}>
-                    <div>{message.snippet || message.subject || 'Untitled'}</div>
+                    <div>{getMessageTitle(message)}</div>
                     <div style={{ color: '#404040' }}>
                       {message.from} → {message.to}
                     </div>
