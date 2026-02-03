@@ -1,0 +1,8 @@
+[build]
+  command = "npm run build:netlify"
+  publish = "public"
+
+[[redirects]]
+  from = "/docs"
+  to = "/docs/"
+  status = 301
