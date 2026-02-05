@@ -13,6 +13,10 @@ import { ConvoyManager } from './convoyManager';
 import { GitIntegration } from './gitIntegration';
 import { OAuthManager } from './oauthManager';
 import { ProviderManager } from './providerManager';
+import { Entrypoint } from './entrypoint';
+import { RepoManager } from './repoManager';
+import { PRManager } from './prManager';
+import { PlanManager } from './planManager';
 import { TaskStatus, TaskPriority, ConvoyStatus, AgentStatus, AgentRuntime, Task } from './types';
 import { SmartRouter, WorkflowType } from './smartRouter';
 
@@ -672,6 +676,198 @@ program
     } catch (error) {
       console.error(chalk.red('Error starting UI:'), (error as Error).message);
     }
+  });
+
+// ==================== PIPELINE COMMANDS ====================
+
+// Start command — full end-to-end pipeline
+program
+  .command('start <repoUrl>')
+  .description('Run the full CreateSuite pipeline: clone → plan → agents → PR')
+  .option('-g, --goal <goal>', 'The goal for agents to accomplish', 'Improve code quality and add tests')
+  .option('-p, --provider <provider>', 'LLM provider (zai-coding-plan, anthropic, openai)', 'zai-coding-plan')
+  .option('-m, --model <model>', 'Model to use', 'glm-4.7')
+  .option('--max-agents <n>', 'Maximum number of agents', '3')
+  .option('--github-token <token>', 'GitHub token for PR creation')
+  .option('--dry-run', 'Clone repo and plan tasks but do not execute')
+  .action(async (repoUrl, options) => {
+    const workspaceRoot = getWorkspaceRoot();
+    
+    console.log(chalk.blue.bold('\n🚀 CreateSuite Pipeline\n'));
+    console.log(chalk.gray(`  Repo:     ${repoUrl}`));
+    console.log(chalk.gray(`  Goal:     ${options.goal}`));
+    console.log(chalk.gray(`  Provider: ${options.provider}`));
+    console.log(chalk.gray(`  Model:    ${options.model}`));
+    console.log(chalk.gray(`  Agents:   ${options.maxAgents}`));
+    if (options.dryRun) console.log(chalk.yellow('  Mode:     DRY RUN'));
+    console.log('');
+
+    const entrypoint = new Entrypoint(workspaceRoot);
+    
+    try {
+      const status = await entrypoint.start({
+        repoUrl,
+        goal: options.goal,
+        provider: options.provider,
+        model: options.model,
+        githubToken: options.githubToken || process.env.GITHUB_TOKEN,
+        maxAgents: parseInt(options.maxAgents, 10),
+        dryRun: options.dryRun
+      });
+
+      if (status.prUrl) {
+        console.log(chalk.green.bold(`\n✓ Pull request: ${status.prUrl}`));
+      }
+    } catch (error: any) {
+      console.error(chalk.red(`\nPipeline failed: ${error.message}`));
+      process.exit(1);
+    }
+  });
+
+// Repo commands
+const repoCmd = program.command('repo').description('Manage target repositories');
+
+repoCmd
+  .command('add <url>')
+  .description('Clone a GitHub repository for agents to work on')
+  .option('--github-token <token>', 'GitHub token for private repos')
+  .option('--depth <n>', 'Shallow clone depth')
+  .action(async (url, options) => {
+    const workspaceRoot = getWorkspaceRoot();
+    const repoManager = new RepoManager(workspaceRoot);
+    
+    try {
+      const repo = await repoManager.cloneRepo(url, {
+        githubToken: options.githubToken || process.env.GITHUB_TOKEN,
+        depth: options.depth ? parseInt(options.depth) : undefined
+      });
+      
+      console.log(chalk.green(`✓ Cloned ${repo.owner}/${repo.name}`));
+      console.log(chalk.gray(`  Path: ${repo.localPath}`));
+      console.log(chalk.gray(`  Branch: ${repo.defaultBranch}`));
+    } catch (error: any) {
+      console.error(chalk.red(`Failed to clone: ${error.message}`));
+      process.exit(1);
+    }
+  });
+
+repoCmd
+  .command('list')
+  .description('List cloned repositories')
+  .action(async () => {
+    const workspaceRoot = getWorkspaceRoot();
+    const repoManager = new RepoManager(workspaceRoot);
+    
+    const repos = await repoManager.listRepos();
+    if (repos.length === 0) {
+      console.log(chalk.yellow('No repositories cloned'));
+      console.log(chalk.gray('Run: cs repo add <github-url>'));
+      return;
+    }
+    
+    console.log(chalk.blue(`\nCloned repositories:\n`));
+    for (const repo of repos) {
+      console.log(`  ${chalk.bold(repo.owner + '/' + repo.name)}`);
+      console.log(`    ${chalk.gray(repo.localPath)}`);
+      console.log(`    Branch: ${repo.defaultBranch} | Cloned: ${repo.clonedAt.toISOString()}`);
+      console.log('');
+    }
+  });
+
+// Convoy run command
+convoyCmd
+  .command('run <convoyId>')
+  .description('Execute a convoy — assign tasks to agents and start work')
+  .action(async (convoyId) => {
+    const workspaceRoot = getWorkspaceRoot();
+    const convoyManager = new ConvoyManager(workspaceRoot);
+    
+    try {
+      const assigned = await convoyManager.executeConvoy(convoyId);
+      console.log(chalk.green(`✓ Convoy ${convoyId} started: ${assigned} task(s) assigned to agents`));
+    } catch (error: any) {
+      console.error(chalk.red(`Failed to execute convoy: ${error.message}`));
+      process.exit(1);
+    }
+  });
+
+// PR commands
+const prCmd = program.command('pr').description('Manage pull requests created by agents');
+
+prCmd
+  .command('list')
+  .description('List PRs created by CreateSuite agents')
+  .option('--repo <owner/name>', 'GitHub repo (owner/name)')
+  .option('--state <state>', 'PR state (open|closed|all)', 'open')
+  .action(async (options) => {
+    const workspaceRoot = getWorkspaceRoot();
+    const repoManager = new RepoManager(workspaceRoot);
+    
+    let repos;
+    if (options.repo) {
+      const [owner, name] = options.repo.split('/');
+      const repo = await repoManager.getRepo(owner, name);
+      repos = repo ? [repo] : [];
+    } else {
+      repos = await repoManager.listRepos();
+    }
+
+    if (repos.length === 0) {
+      console.log(chalk.yellow('No repositories found'));
+      return;
+    }
+
+    const prManager = new PRManager(process.env.GITHUB_TOKEN);
+    
+    for (const repo of repos) {
+      console.log(chalk.blue(`\n${repo.owner}/${repo.name}:`));
+      try {
+        const prs = await prManager.listAgentPRs(repo, options.state);
+        if (prs.length === 0) {
+          console.log(chalk.gray('  No agent PRs found'));
+        } else {
+          for (const pr of prs) {
+            const stateColor = pr.state === 'OPEN' ? chalk.green : chalk.gray;
+            console.log(`  ${stateColor(`#${pr.number}`)} ${pr.title}`);
+            console.log(`    ${chalk.gray(pr.url)}`);
+          }
+        }
+      } catch (e: any) {
+        console.log(chalk.gray(`  Unable to list PRs: ${e.message}`));
+      }
+    }
+  });
+
+// Pipeline status command
+program
+  .command('pipeline')
+  .description('Show the current pipeline status')
+  .action(async () => {
+    const workspaceRoot = getWorkspaceRoot();
+    const entrypoint = new Entrypoint(workspaceRoot);
+    
+    const status = await entrypoint.getStatus();
+    if (!status) {
+      console.log(chalk.yellow('No pipeline has been run yet'));
+      console.log(chalk.gray('Run: cs start <github-url> --goal "your goal"'));
+      return;
+    }
+    
+    const phaseColor = 
+      status.phase === 'completed' ? chalk.green :
+      status.phase === 'failed' ? chalk.red :
+      chalk.yellow;
+    
+    console.log(chalk.blue('\nPipeline Status:\n'));
+    console.log(`  ID:    ${status.id}`);
+    console.log(`  Repo:  ${status.repoUrl}`);
+    console.log(`  Goal:  ${status.goal}`);
+    console.log(`  Phase: ${phaseColor(status.phase)}`);
+    if (status.convoyId) console.log(`  Convoy: ${status.convoyId}`);
+    if (status.prUrl) console.log(`  PR: ${chalk.green(status.prUrl)}`);
+    if (status.error) console.log(`  Error: ${chalk.red(status.error)}`);
+    console.log(`  Started: ${status.startedAt.toISOString()}`);
+    if (status.completedAt) console.log(`  Completed: ${status.completedAt.toISOString()}`);
   });
 
 program.parse();

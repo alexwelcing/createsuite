@@ -11,6 +11,12 @@ RUN apt-get update && apt-get install -y \
     bash \
     && rm -rf /var/lib/apt/lists/*
 
+# Install GitHub CLI for PR creation
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+    && apt-get update && apt-get install -y gh && rm -rf /var/lib/apt/lists/*
+
 # Install OpenCode
 RUN curl -fsSL https://opencode.ai/install | bash
 # Add OpenCode to PATH for all future shells
@@ -18,6 +24,10 @@ ENV PATH="/root/.opencode/bin:${PATH}"
 
 # Set working directory
 WORKDIR /app
+
+# Copy entrypoint script
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 # Copy root package files to leverage cache if we were in a monorepo, 
 # but here we are just in agent-ui. 
@@ -40,5 +50,5 @@ RUN npm run build
 ENV PORT=8080
 EXPOSE 8080
 
-# Start server
-CMD ["node", "server/index.js"]
+# Start via entrypoint (supports task mode and interactive mode)
+ENTRYPOINT ["/docker-entrypoint.sh"]

@@ -139,4 +139,50 @@ Thumbs.db
     const status = await this.git.status();
     return status.isClean();
   }
+
+  /**
+   * Clone an external repository into a target directory.
+   */
+  async cloneRepo(repoUrl: string, targetDir: string, options: string[] = []): Promise<void> {
+    await this.git.clone(repoUrl, targetDir, options);
+  }
+
+  /**
+   * Push a branch to origin.
+   */
+  async pushBranch(branch: string): Promise<void> {
+    await this.git.push('origin', branch, ['--set-upstream']);
+  }
+
+  /**
+   * Add a remote.
+   */
+  async addRemote(name: string, url: string): Promise<void> {
+    try {
+      await this.git.addRemote(name, url);
+    } catch {
+      // Remote may already exist
+      await this.git.remote(['set-url', name, url]);
+    }
+  }
+
+  /**
+   * Fetch from a remote.
+   */
+  async fetch(remote: string = 'origin'): Promise<void> {
+    await this.git.fetch(remote);
+  }
+
+  /**
+   * Stage all changes and commit.
+   */
+  async commitAll(message: string): Promise<string | null> {
+    await this.git.add('-A');
+    const status = await this.git.status();
+    if (status.isClean()) {
+      return null;
+    }
+    const result = await this.git.commit(message);
+    return result.commit;
+  }
 }

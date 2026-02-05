@@ -15,6 +15,8 @@ export { ProviderManager, Provider } from './providerManager';
 export { LocalhostOAuth } from './localhostOAuth';
 export { Entrypoint } from './entrypoint';
 export { SmartRouter, analyzeComplexity } from './smartRouter';
+export { RepoManager } from './repoManager';
+export { PRManager } from './prManager';
 
 export * from './types';
 export type { WorkflowType, RouterResult } from './smartRouter';

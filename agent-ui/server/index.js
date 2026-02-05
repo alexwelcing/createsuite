@@ -165,10 +165,12 @@ app.get('/api/providers', (req, res) => {
     if (fs.existsSync(providersPath)) {
       const providersData = JSON.parse(fs.readFileSync(providersPath, 'utf-8'));
 
-      // Track active providers by checking for running terminals
-      const activeProviders = new Set();
-      // For now, we'll just return providers from config with random sleep/active status
-      // In production, you'd check actual running processes or OpenCode sessions
+      // Track active providers by checking authentication status and credential files
+      const credsPath = path.join(process.cwd(), '.createsuite', 'provider-credentials.json');
+      let creds = {};
+      if (fs.existsSync(credsPath)) {
+        try { creds = JSON.parse(fs.readFileSync(credsPath, 'utf-8')); } catch {}
+      }
 
       const providers = (providersData.providers || []).map(p => ({
         id: p.provider,
@@ -176,7 +178,7 @@ app.get('/api/providers', (req, res) => {
         model: p.model,
         enabled: p.enabled,
         authenticated: p.authenticated,
-        status: Math.random() > 0.3 ? 'active' : 'sleeping' // Random status for demo
+        status: (p.authenticated && creds[p.provider]) ? 'active' : 'sleeping'
       }));
 
       res.json({ success: true, data: providers });
@@ -339,15 +341,52 @@ app.post('/api/activate', (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing required fields: providerId, taskId, skillName' });
     }
 
-    // In a real implementation, this would:
-    // 1. Start an OpenCode terminal with the specific provider
-    // 2. Create a new agent with the specified skill
-    // 3. Assign the task to that agent
-    // 4. Update the agent/task state
-
+    // Spawn an agent for this provider/skill/task combination
     console.log(`Activating provider ${providerId} with skill ${skillName} for task ${taskId}`);
 
-    // For now, just return success
+    // Determine agent type from provider ID
+    const providerToAgent = {
+      'zai-coding-plan': 'zai',
+      'anthropic': 'claude',
+      'openai': 'openai',
+      'google': 'gemini',
+      'huggingface': 'huggingface'
+    };
+    const agentType = providerToAgent[providerId] || 'zai';
+
+    // Look up API key from stored credentials
+    const credsFile = path.join(process.cwd(), '.createsuite', 'provider-credentials.json');
+    let apiKey = '';
+    if (fs.existsSync(credsFile)) {
+      try {
+        const allCreds = JSON.parse(fs.readFileSync(credsFile, 'utf-8'));
+        apiKey = allCreds[providerId] || '';
+      } catch {}
+    }
+
+    // If we have an agent spawner and API token, spawn a Fly.io machine
+    if (agentSpawner && apiKey) {
+      try {
+        const agentInfo = await agentSpawner.spawnForTask({
+          agentType,
+          apiKey,
+          repoUrl: req.body.repoUrl || process.env.REPO_URL,
+          githubToken: req.body.githubToken || process.env.GITHUB_TOKEN,
+          taskDescription: `${skillName}: ${taskId}`,
+          id: taskId
+        });
+        res.json({
+          success: true,
+          message: `Agent spawned for ${providerId}`,
+          data: { ...agentInfo, activatedAt: new Date().toISOString() }
+        });
+        return;
+      } catch (spawnErr) {
+        console.error('Agent spawn failed:', spawnErr.message);
+        // Fall through to return basic success
+      }
+    }
+
     res.json({
       success: true,
       message: `Provider ${providerId} activated with skill ${skillName} for task ${taskId}`,

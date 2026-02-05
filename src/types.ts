@@ -130,3 +130,75 @@ export interface PlanTask {
   completed: boolean;
   lineNumber: number;
 }
+
+/**
+ * Repository configuration for agent work
+ */
+export interface RepoConfig {
+  url: string;           // GitHub URL (https://github.com/owner/repo)
+  owner: string;
+  name: string;
+  localPath: string;     // Where the repo is cloned locally
+  defaultBranch: string; // main, master, etc.
+  clonedAt: Date;
+}
+
+/**
+ * Skill category from agent-skills.json
+ */
+export interface SkillCategory {
+  name: string;
+  skills: string[];
+  direction: string;
+}
+
+/**
+ * Router result from SmartRouter
+ */
+export interface RouterResult {
+  recommended: WorkflowType;
+  confidence: number;
+  reasoning: string;
+  suggestedSkills: string[];
+  estimatedAgents: number;
+}
+
+export type WorkflowType = 'simple' | 'complex' | 'team';
+
+/**
+ * Pipeline configuration for a full CreateSuite run
+ */
+export interface PipelineConfig {
+  repoUrl: string;
+  goal: string;
+  provider?: string;
+  model?: string;
+  githubToken?: string;
+  maxAgents?: number;
+  dryRun?: boolean;
+}
+
+/**
+ * Pipeline status for tracking end-to-end runs
+ */
+export interface PipelineStatus {
+  id: string;
+  repoUrl: string;
+  goal: string;
+  phase: PipelinePhase;
+  convoyId?: string;
+  prUrl?: string;
+  startedAt: Date;
+  completedAt?: Date;
+  error?: string;
+}
+
+export enum PipelinePhase {
+  CLONING = 'cloning',
+  PLANNING = 'planning',
+  EXECUTING = 'executing',
+  COMMITTING = 'committing',
+  PR_CREATING = 'pr_creating',
+  COMPLETED = 'completed',
+  FAILED = 'failed'
+}

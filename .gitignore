@@ -80,6 +80,8 @@ web_modules/
 .createsuite/*.tmp
 .sisyphus/  # Symlinks to .createsuite (unified storage)
 .createsuite/agents/
+.createsuite/repos/
+.createsuite/pipeline-status.json
 
 # Remotion
 public/tour.mp4

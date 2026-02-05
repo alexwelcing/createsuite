@@ -1,7 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
-import { Convoy, ConvoyStatus, TaskStatus } from './types';
+import { Convoy, ConvoyStatus, TaskStatus, AgentStatus } from './types';
 import { ConfigManager } from './config';
 import { TaskManager } from './taskManager';
+import { AgentOrchestrator } from './agentOrchestrator';
 
 /**
  * Manages convoys - groups of related tasks
@@ -9,10 +10,12 @@ import { TaskManager } from './taskManager';
 export class ConvoyManager {
   private configManager: ConfigManager;
   private taskManager: TaskManager;
+  private orchestrator: AgentOrchestrator;
 
   constructor(workspaceRoot: string) {
     this.configManager = new ConfigManager(workspaceRoot);
     this.taskManager = new TaskManager(workspaceRoot);
+    this.orchestrator = new AgentOrchestrator(workspaceRoot);
   }
 
   /**
@@ -163,5 +166,54 @@ export class ConvoyManager {
       open,
       percentage
     };
+  }
+
+  /**
+   * Execute a convoy — assign tasks to idle agents and kick off work.
+   * Returns the number of tasks that were assigned.
+   */
+  async executeConvoy(convoyId: string): Promise<number> {
+    const convoy = await this.getConvoy(convoyId);
+    if (!convoy) {
+      throw new Error(`Convoy not found: ${convoyId}`);
+    }
+    if (convoy.status === ConvoyStatus.COMPLETED) {
+      throw new Error(`Convoy ${convoyId} is already completed`);
+    }
+
+    // Get open tasks in this convoy
+    const tasks = await Promise.all(
+      convoy.tasks.map(id => this.taskManager.getTask(id))
+    );
+    const openTasks = tasks.filter(
+      t => t && (t.status === TaskStatus.OPEN || t.status === TaskStatus.BLOCKED)
+    );
+
+    if (openTasks.length === 0) {
+      console.log(`No open tasks in convoy ${convoyId}`);
+      await this.updateConvoyStatus(convoyId, ConvoyStatus.COMPLETED);
+      return 0;
+    }
+
+    // Get idle agents
+    const agents = await this.orchestrator.getIdleAgents();
+    let assigned = 0;
+
+    for (const task of openTasks) {
+      if (!task) continue;
+      const agent = agents.find(a =>
+        a.status === AgentStatus.IDLE && !a.currentTask
+      );
+      if (!agent) break; // No more idle agents
+
+      await this.orchestrator.assignTaskToAgent(agent.id, task.id);
+      await this.taskManager.assignTask(task.id, agent.id);
+      agent.currentTask = task.id; // Mark locally so we don't reuse
+      assigned++;
+    }
+
+    // Activate convoy
+    await this.updateConvoyStatus(convoyId, ConvoyStatus.ACTIVE);
+    return assigned;
   }
 }

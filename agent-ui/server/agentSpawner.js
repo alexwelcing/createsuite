@@ -73,6 +73,14 @@ const AGENT_CONFIGS = {
     envVar: 'HF_TOKEN',
     description: 'Asset and image generation',
     color: '#ff9d00'
+  },
+  zai: {
+    name: 'Architect',
+    model: 'glm-4.7',
+    provider: 'zai-coding-plan',
+    envVar: 'ZAI_API_KEY',
+    description: 'Code architecture and planning specialist',
+    color: '#0066ff'
   }
 };
 
@@ -264,7 +272,12 @@ class AgentSpawner {
       ...(options.repoUrl && { REPO_URL: options.repoUrl }),
       
       // Task assignment (if provided)
-      ...(options.taskId && { ASSIGNED_TASK: options.taskId })
+      ...(options.taskId && { ASSIGNED_TASK: options.taskId }),
+
+      // Task script (base64-encoded bash script for autonomous work)
+      ...(options.taskScript && {
+        TASK_SCRIPT_B64: Buffer.from(options.taskScript).toString('base64')
+      })
     };
 
     // Machine configuration
@@ -283,12 +296,21 @@ class AgentSpawner {
         restart: {
           policy: 'no' // Don't auto-restart - let it die when done
         },
+        // If a task script is provided, override the default CMD to execute it
+        ...(options.taskScript && {
+          init: {
+            exec: [
+              '/bin/bash', '-c',
+              'echo "$TASK_SCRIPT_B64" | base64 -d > /tmp/task.sh && chmod +x /tmp/task.sh && /tmp/task.sh'
+            ]
+          }
+        }),
         services: [
-          {
+          ...(!options.taskScript ? [{
             ports: [{ port: 8080, handlers: ['http'] }],
             protocol: 'tcp',
             internal_port: 8080
-          }
+          }] : [])
         ],
         metadata: {
           agent_id: agentId,

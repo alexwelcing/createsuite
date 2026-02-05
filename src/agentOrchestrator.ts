@@ -239,6 +239,8 @@ export class AgentOrchestrator {
     }
 
     if (agent.runtime === AgentRuntime.FLY) {
+      // Fly.io agents are spawned via the agentSpawner in the server layer.
+      // Mark agent as working; the actual Fly machine is handled externally.
       await this.updateAgent(agentId, {
         status: AgentStatus.WORKING
       });
@@ -248,33 +250,49 @@ export class AgentOrchestrator {
     // Sanitize workspace root to prevent command injection
     const sanitizedWorkspace = this.workspaceRoot.replace(/['"\\$`]/g, '\\$&');
     
-    // Create a script to install and run OpenCode
+    // Build the OpenCode command with provider/model from environment
+    const provider = process.env.OPENCODE_PROVIDER || 'zai-coding-plan';
+    const model = process.env.OPENCODE_MODEL || 'glm-4.7';
+    const taskArg = agent.currentTask ? `--task "${agent.currentTask}"` : '';
+
     const script = `
       #!/bin/bash
       # Install OpenCode if not already installed
       if ! command -v opencode &> /dev/null; then
         curl -fsSL https://opencode.ai/install | bash
+        export PATH="$HOME/.opencode/bin:$PATH"
       fi
       
       # Run OpenCode in the workspace
       cd "${sanitizedWorkspace}"
-      opencode
+      export OPENCODE_PROVIDER="${provider}"
+      export OPENCODE_MODEL="${model}"
+      opencode ${taskArg}
     `;
 
-    // For now, we'll simulate terminal spawning
-    // In production, this would integrate with actual terminal emulators
-    console.log(`Would spawn OpenCode terminal for agent ${agent.name}`);
-    console.log('Script:', script);
+    // Spawn a detached child process running the script
+    const child = child_process.spawn('bash', ['-c', script], {
+      detached: true,
+      stdio: 'ignore',
+      cwd: this.workspaceRoot,
+      env: {
+        ...process.env,
+        OPENCODE_PROVIDER: provider,
+        OPENCODE_MODEL: model
+      }
+    });
 
-    // Placeholder PID - use null in production until actual terminal spawning is implemented
-    const pid = undefined;
+    child.unref();
+    const pid = child.pid || 0;
+
+    console.log(`Spawned OpenCode terminal for agent ${agent.name} (PID: ${pid})`);
     
     await this.updateAgent(agentId, {
       terminalPid: pid,
       status: AgentStatus.WORKING
     });
 
-    return pid || 0;
+    return pid;
   }
 
   /**
