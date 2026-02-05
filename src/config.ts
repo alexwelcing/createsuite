@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
-import { WorkspaceConfig, Agent, Task, Convoy } from './types';
+import { WorkspaceConfig, Agent, Task, Convoy, AgentRuntime } from './types';
 
 /**
  * Manages workspace configuration and state
@@ -166,6 +166,7 @@ export class ConfigManager {
       const data = await fsp.readFile(agentPath, 'utf-8');
       const agent = JSON.parse(data);
       agent.createdAt = new Date(agent.createdAt);
+      agent.runtime = agent.runtime ?? AgentRuntime.LOCAL;
       return agent;
     } catch {
       return null;
