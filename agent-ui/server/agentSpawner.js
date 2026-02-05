@@ -30,11 +30,15 @@ const { v4: uuidv4 } = require('uuid');
 
 // Fly.io API configuration
 const FLY_API_HOST = 'api.machines.dev';
-const FLY_APP_NAME = process.env.FLY_APP_NAME || 'createsuite-agent-ui';
+const FLY_UI_APP_NAME = process.env.FLY_APP_NAME || 'createsuite-agent-ui';
 const FLY_API_TOKEN = process.env.FLY_API_TOKEN;
+const FLY_ORG_SLUG = process.env.FLY_ORG || process.env.FLY_ORG_SLUG;
+const FLY_AGENT_APP_PREFIX = process.env.FLY_AGENT_APP_PREFIX || FLY_UI_APP_NAME;
+const MAX_FLY_APP_NAME_LENGTH = 30;
+const UI_WEBSOCKET_URL = process.env.UI_WEBSOCKET_URL || `wss://${FLY_UI_APP_NAME}.fly.dev`;
 
 // Agent Docker image (same image, different env vars)
-const AGENT_IMAGE = process.env.AGENT_IMAGE || `registry.fly.io/${FLY_APP_NAME}:latest`;
+const AGENT_IMAGE = process.env.AGENT_IMAGE || `registry.fly.io/${FLY_UI_APP_NAME}:latest`;
 
 // Agent configurations
 const AGENT_CONFIGS = {
@@ -72,22 +76,55 @@ const AGENT_CONFIGS = {
   }
 };
 
+const normalizeAppName = (name) => {
+  const normalized = (name || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  return normalized || 'agent';
+};
+
+// Build a per-agent Fly app name within Fly's length/format constraints.
+const buildAgentAppName = (agentType, agentId) => {
+  const suffix = `${agentType}-${agentId}`;
+  let base = normalizeAppName(FLY_AGENT_APP_PREFIX);
+  let candidate = `${base}-${suffix}`;
+  if (candidate.length > MAX_FLY_APP_NAME_LENGTH) {
+    const baseLimit = Math.max(0, MAX_FLY_APP_NAME_LENGTH - suffix.length - 1);
+    base = base.slice(0, baseLimit);
+    candidate = base ? `${base}-${suffix}` : suffix;
+  }
+  if (candidate.length > MAX_FLY_APP_NAME_LENGTH) {
+    candidate = candidate.slice(0, MAX_FLY_APP_NAME_LENGTH);
+  }
+  candidate = candidate.replace(/-+$/, '');
+  if (!candidate) {
+    candidate = suffix.slice(0, MAX_FLY_APP_NAME_LENGTH).replace(/-+$/, '');
+  }
+  return candidate;
+};
+
 class AgentSpawner {
   constructor(io) {
     this.io = io;
     this.activeAgents = new Map(); // agentId -> machine info
     this.pendingSpawns = new Map(); // agentId -> spawn promise
+    this.orgSlug = null;
   }
 
   /**
    * Make a request to Fly.io Machines API
    */
-  async flyRequest(method, path, body = null) {
+  async flyRequest(method, path, body = null, appName = FLY_UI_APP_NAME) {
     return new Promise((resolve, reject) => {
+      const apiPath = (appName === null || appName === undefined)
+        ? `/v1${path}`
+        : `/v1/apps/${appName}${path}`;
       const options = {
         hostname: FLY_API_HOST,
         port: 443,
-        path: `/v1/apps/${FLY_APP_NAME}${path}`,
+        path: apiPath,
         method,
         headers: {
           'Authorization': `Bearer ${FLY_API_TOKEN}`,
@@ -121,6 +158,59 @@ class AgentSpawner {
     });
   }
 
+  async resolveOrgSlug() {
+    if (this.orgSlug) {
+      return this.orgSlug;
+    }
+    if (FLY_ORG_SLUG) {
+      this.orgSlug = FLY_ORG_SLUG;
+      return this.orgSlug;
+    }
+    try {
+      const appInfo = await this.flyRequest('GET', '', null, FLY_UI_APP_NAME);
+      const org = appInfo?.organization || appInfo?.org || {};
+      const slug = org.slug || org.name || org.id;
+      if (slug) {
+        this.orgSlug = slug;
+        return slug;
+      }
+    } catch (error) {
+      console.warn('[AgentSpawner] Unable to resolve Fly org slug:', error.message);
+    }
+    return null;
+  }
+
+  async ensureAgentApp(appName) {
+    if (!appName || appName === FLY_UI_APP_NAME) {
+      return;
+    }
+    const payload = { app_name: appName };
+    const orgSlug = await this.resolveOrgSlug();
+    if (orgSlug) {
+      payload.org_slug = orgSlug;
+    }
+    try {
+      // Use the global /v1/apps endpoint when no app context is provided.
+      await this.flyRequest('POST', '/apps', payload, null);
+    } catch (error) {
+      if (/already exists/i.test(error.message) || /already in use/i.test(error.message)) {
+        return;
+      }
+      throw new Error(`Failed to create Fly app ${appName}: ${error.message}`);
+    }
+  }
+
+  async deleteAgentApp(appName) {
+    if (!appName || appName === FLY_UI_APP_NAME) {
+      return;
+    }
+    try {
+      await this.flyRequest('DELETE', '', null, appName);
+    } catch (error) {
+      console.warn(`[AgentSpawner] Failed to delete app ${appName}:`, error.message);
+    }
+  }
+
   /**
    * Spawn a new agent machine
    */
@@ -132,6 +222,7 @@ class AgentSpawner {
 
     const agentId = uuidv4().slice(0, 8);
     const machineName = `agent-${agentType}-${agentId}`;
+    const agentAppName = buildAgentAppName(agentType, agentId);
 
     console.log(`[AgentSpawner] Spawning ${config.name} agent: ${machineName}`);
 
@@ -162,7 +253,7 @@ class AgentSpawner {
       [config.envVar]: apiKey,
       
       // Connect back to UI
-      UI_WEBSOCKET_URL: `wss://${FLY_APP_NAME}.fly.dev`,
+      UI_WEBSOCKET_URL: UI_WEBSOCKET_URL,
       
       // Mode
       AGENT_MODE: 'worker',
@@ -209,14 +300,17 @@ class AgentSpawner {
     };
 
     try {
+      await this.ensureAgentApp(agentAppName);
+
       // Create the machine
-      const machine = await this.flyRequest('POST', '/machines', machineConfig);
+      const machine = await this.flyRequest('POST', '/machines', machineConfig, agentAppName);
       
       console.log(`[AgentSpawner] Machine created: ${machine.id}`);
       
       // Track the agent
       this.activeAgents.set(agentId, {
         machineId: machine.id,
+        appName: agentAppName,
         type: agentType,
         name: config.name,
         status: 'starting',
@@ -225,7 +319,7 @@ class AgentSpawner {
       });
 
       // Wait for machine to start
-      await this.waitForMachine(machine.id);
+      await this.waitForMachine(machine.id, 60000, agentAppName);
 
       // Update status
       const agentInfo = this.activeAgents.get(agentId);
@@ -264,12 +358,12 @@ class AgentSpawner {
   /**
    * Wait for a machine to be in 'started' state
    */
-  async waitForMachine(machineId, maxWait = 60000) {
+  async waitForMachine(machineId, maxWait = 60000, appName = FLY_UI_APP_NAME) {
     const startTime = Date.now();
     
     while (Date.now() - startTime < maxWait) {
       try {
-        const machine = await this.flyRequest('GET', `/machines/${machineId}`);
+        const machine = await this.flyRequest('GET', `/machines/${machineId}`, null, appName);
         
         if (machine.state === 'started') {
           return machine;
@@ -305,7 +399,11 @@ class AgentSpawner {
 
     try {
       // Stop the machine
-      await this.flyRequest('POST', `/machines/${agent.machineId}/stop`);
+      try {
+        await this.flyRequest('POST', `/machines/${agent.machineId}/stop`, null, agent.appName || FLY_UI_APP_NAME);
+      } finally {
+        await this.deleteAgentApp(agent.appName);
+      }
       
       // Remove from tracking
       this.activeAgents.delete(agentId);

@@ -81,6 +81,11 @@ agent-ui/
 | `GRACE_PERIOD_MS` | Grace period before shutdown | `900000` (15 min) |
 | `WEBHOOK_URL` | Slack/Discord notifications | - |
 | `GITHUB_TOKEN` | For agent-triggered rebuilds | - |
+| `FLY_API_TOKEN` | Enable Fly.io agent spawning | - |
+| `FLY_APP_NAME` | Fly.io app name for the UI | `createsuite-agent-ui` |
+| `FLY_AGENT_APP_PREFIX` | Prefix for per-agent Fly apps | Value of `FLY_APP_NAME` |
+| `FLY_ORG` | Fly.io org slug for new apps | - |
+| `UI_WEBSOCKET_URL` | WebSocket URL agents connect back to | `wss://<FLY_APP_NAME>.fly.dev` |
 
 ## 📖 Documentation
 
