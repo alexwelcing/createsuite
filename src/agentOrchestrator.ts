@@ -55,6 +55,8 @@ export class AgentOrchestrator {
   private configManager: ConfigManager;
   private workspaceRoot: string;
   private activeKernels: Map<string, KernelManager> = new Map();
+  // Track managed child processes: agentId → { process, exitPromise }
+  private managedProcesses: Map<string, { proc: child_process.ChildProcess; onComplete?: (code: number | null) => void }> = new Map();
 
   constructor(workspaceRoot: string) {
     this.workspaceRoot = workspaceRoot;
@@ -230,9 +232,16 @@ export class AgentOrchestrator {
   }
 
   /**
-   * Spawn OpenCode terminal for agent
+   * Spawn OpenCode terminal for agent.
+   * For local agents, this is a managed child process with completion tracking.
+   * For Fly agents, the process is handled by agentSpawner — we just mark status.
+   *
+   * @param onComplete Optional callback fired when the local process exits.
    */
-  async spawnOpenCodeTerminal(agentId: string): Promise<number> {
+  async spawnOpenCodeTerminal(
+    agentId: string,
+    onComplete?: (code: number | null) => void
+  ): Promise<number> {
     const agent = await this.getAgent(agentId);
     if (!agent) {
       throw new Error(`Agent not found: ${agentId}`);
@@ -257,6 +266,7 @@ export class AgentOrchestrator {
 
     const script = `
       #!/bin/bash
+      set -e
       # Install OpenCode if not already installed
       if ! command -v opencode &> /dev/null; then
         curl -fsSL https://opencode.ai/install | bash
@@ -270,11 +280,10 @@ export class AgentOrchestrator {
       opencode ${taskArg}
     `;
 
-    // Spawn a detached child process running the script
+    // Spawn a MANAGED child process (not detached, not ignored)
     const child = child_process.spawn('bash', ['-c', script], {
-      detached: true,
-      stdio: 'ignore',
       cwd: this.workspaceRoot,
+      stdio: ['ignore', 'pipe', 'pipe'],
       env: {
         ...process.env,
         OPENCODE_PROVIDER: provider,
@@ -282,11 +291,43 @@ export class AgentOrchestrator {
       }
     });
 
-    child.unref();
     const pid = child.pid || 0;
-
     console.log(`Spawned OpenCode terminal for agent ${agent.name} (PID: ${pid})`);
-    
+
+    // Track the managed process
+    this.managedProcesses.set(agentId, { proc: child, onComplete });
+
+    // Capture output for logging
+    child.stdout?.on('data', (data: Buffer) => {
+      process.stdout.write(`[agent:${agent.name}] ${data.toString()}`);
+    });
+    child.stderr?.on('data', (data: Buffer) => {
+      process.stderr.write(`[agent:${agent.name}:err] ${data.toString()}`);
+    });
+
+    // Monitor exit → update status automatically
+    child.on('exit', async (code, signal) => {
+      console.log(`Agent ${agent.name} process exited (code=${code}, signal=${signal})`);
+
+      const newStatus = (code === 0) ? AgentStatus.IDLE : AgentStatus.ERROR;
+      try {
+        await this.updateAgent(agentId, {
+          status: newStatus,
+          terminalPid: undefined
+        });
+      } catch (err: any) {
+        console.error(`Failed to update agent status on exit: ${err.message}`);
+      }
+
+      // Clean up tracking
+      this.managedProcesses.delete(agentId);
+
+      // Fire callback if registered
+      if (onComplete) {
+        onComplete(code);
+      }
+    });
+
     await this.updateAgent(agentId, {
       terminalPid: pid,
       status: AgentStatus.WORKING
@@ -338,6 +379,15 @@ export class AgentOrchestrator {
     if (kernel) {
       kernel.stop();
       this.activeKernels.delete(agentId);
+    }
+
+    // Kill managed process if active
+    const managed = this.managedProcesses.get(agentId);
+    if (managed && managed.proc) {
+      try {
+        managed.proc.kill('SIGTERM');
+      } catch {}
+      this.managedProcesses.delete(agentId);
     }
 
     // Update agent status

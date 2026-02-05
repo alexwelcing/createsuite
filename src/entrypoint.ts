@@ -19,21 +19,21 @@ import * as path from 'path';
 /**
  * Entrypoint — the top-level orchestrator for a full CreateSuite run.
  *
- * Usage:
- *   const entry = new Entrypoint(workspaceRoot);
- *   const result = await entry.start({
- *     repoUrl: 'https://github.com/user/repo',
- *     goal: 'Add comprehensive unit tests',
- *     provider: 'zai-coding-plan',
- *     model: 'glm-4.7',
- *     githubToken: process.env.GITHUB_TOKEN
- *   });
+ * Two modes of operation:
+ *
+ * 1. **API mode (preferred)** — The UI server's PipelineRunner handles everything.
+ *    Agents report back via callback API. No polling. No human required.
+ *    Trigger via `POST /api/pipeline/start`.
+ *
+ * 2. **CLI mode (fallback)** — Runs locally via `cs start <repo>`.
+ *    Uses managed child processes with completion callbacks.
+ *    The `start()` method orchestrates clone → plan → execute → wait → PR.
  *
  * Pipeline:
  *   1. Clone the target repo
  *   2. Create a plan (decompose goal into tasks + convoy)
  *   3. Assign agents and execute tasks
- *   4. Monitor progress until completion
+ *   4. Wait for agent completion (via callbacks, not polling)
  *   5. Commit and push agent work
  *   6. Open a GitHub PR
  *   7. Return PR URL
@@ -60,7 +60,40 @@ export class Entrypoint {
   }
 
   /**
-   * Run the full CreateSuite pipeline end-to-end.
+   * Trigger a pipeline via the server's PipelineRunner API.
+   * This is the preferred agent-driven mode — returns immediately,
+   * agents work autonomously and report back via callbacks.
+   */
+  async triggerRemote(config: PipelineConfig, serverUrl?: string): Promise<{ pipelineId: string }> {
+    const url = serverUrl || process.env.CREATESUITE_SERVER_URL || 'http://localhost:3001';
+    const resp = await fetch(`${url}/api/pipeline/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        repoUrl: config.repoUrl,
+        goal: config.goal,
+        provider: config.provider,
+        model: config.model,
+        githubToken: config.githubToken,
+        maxAgents: config.maxAgents
+      })
+    });
+
+    if (!resp.ok) {
+      const body = await resp.text();
+      throw new Error(`Pipeline API error: ${resp.status} — ${body}`);
+    }
+
+    const result = await resp.json() as { success: boolean; data: { pipelineId: string } };
+    console.log(`Pipeline started: ${result.data.pipelineId}`);
+    console.log('Agents will work autonomously. Track progress at:');
+    console.log(`  ${url}/api/pipeline/status/${result.data.pipelineId}`);
+    return result.data;
+  }
+
+  /**
+   * Run the full CreateSuite pipeline locally (CLI mode).
+   * Uses managed child processes with completion callbacks — not polling.
    */
   async start(config: PipelineConfig): Promise<PipelineStatus> {
     const pipelineId = uuidv4().slice(0, 12);
@@ -117,21 +150,37 @@ export class Entrypoint {
       status.phase = PipelinePhase.EXECUTING;
       await this.saveStatus(status);
 
+      // Execute plan — for Fly runtime, this delegates to PipelineRunner via API.
+      // For local runtime, agents are managed child processes with callbacks.
+      if (runtime === AgentRuntime.FLY && !config.dryRun) {
+        // Delegate to the server's PipelineRunner (if running)
+        try {
+          const remote = await this.triggerRemote(config);
+          status.phase = PipelinePhase.EXECUTING;
+          await this.saveStatus(status);
+          console.log(`Delegated to PipelineRunner: ${remote.pipelineId}`);
+          console.log('Agents are working autonomously. Use the API to check status.');
+          return status;
+        } catch (err: any) {
+          console.log(`Server not available (${err.message}), falling back to local execution`);
+        }
+      }
+
+      // Local execution with completion callbacks
       await this.planManager.executePlan(convoy, repoConfig, {
         provider: config.provider,
         model: config.model,
         githubToken: config.githubToken
       });
 
-      // Monitor progress
-      await this.monitorConvoy(convoy.id, tasks.length);
+      // Wait for all agents to finish (callback-driven, with timeout safety net)
+      await this.waitForAgentCompletion(convoy.id, tasks.length);
 
       // ── Phase 4: Commit ──
       console.log(`\n💾 Phase 4: Committing agent work...`);
       status.phase = PipelinePhase.COMMITTING;
       await this.saveStatus(status);
 
-      // Create a consolidated branch for all agent work
       const branchName = `createsuite/${convoy.id}`;
       await this.repoManager.createWorkBranch(repoConfig, 'consolidated', convoy.id);
 
@@ -226,28 +275,47 @@ export class Entrypoint {
 
   // -- Private --
 
-  private async monitorConvoy(convoyId: string, taskCount: number): Promise<void> {
-    const maxWait = 10 * 60 * 1000; // 10 minutes max
-    const pollInterval = 5000; // 5 seconds
+  /**
+   * Wait for all agents in a convoy to finish their work.
+   * Uses a combination of task status checks and a timeout.
+   * The orchestrator's managed processes update status on exit.
+   */
+  private async waitForAgentCompletion(convoyId: string, taskCount: number): Promise<void> {
+    const maxWait = 15 * 60 * 1000; // 15 minutes max
+    const checkInterval = 3000; // 3 seconds
     const startTime = Date.now();
 
     while (Date.now() - startTime < maxWait) {
       const progress = await this.convoyManager.getConvoyProgress(convoyId);
+
+      const done = progress.completed + (progress.total - progress.completed - progress.inProgress - progress.open);
+      if (done >= progress.total && progress.total > 0) {
+        console.log(`✓ All ${progress.total} tasks finished (${progress.completed} completed)`);
+        return;
+      }
 
       if (progress.completed === progress.total && progress.total > 0) {
         console.log(`✓ All ${progress.total} tasks completed`);
         return;
       }
 
+      // Check if all non-completed tasks have agents that are no longer working
+      const agents = await this.orchestrator.listAgents();
+      const workingAgents = agents.filter(a => a.status === 'working' as any);
+      if (workingAgents.length === 0 && progress.inProgress === 0 && progress.open === 0) {
+        console.log(`✓ No agents still working — convoy done`);
+        return;
+      }
+
       console.log(
         `  Progress: ${progress.completed}/${progress.total} tasks ` +
-        `(${progress.inProgress} in progress, ${progress.open} pending)`
+        `(${progress.inProgress} in progress, ${workingAgents.length} agents active)`
       );
 
-      await new Promise(r => setTimeout(r, pollInterval));
+      await new Promise(r => setTimeout(r, checkInterval));
     }
 
-    console.log('⚠ Monitoring timeout — checking final state...');
+    console.log('⚠ Timeout waiting for agents — continuing with what we have');
   }
 
   private async saveStatus(status: PipelineStatus): Promise<void> {

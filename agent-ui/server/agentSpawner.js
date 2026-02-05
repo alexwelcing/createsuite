@@ -478,13 +478,15 @@ class AgentSpawner {
  * 1. Clone a repository
  * 2. Run OpenCode to complete a task
  * 3. Commit and push changes
- * 4. Open a PR
+ * 4. Report back via callback API
  * 5. Self-terminate
  */
 class GitAgentSpawner extends AgentSpawner {
   
   /**
-   * Spawn an agent to work on a GitHub issue/task
+   * Spawn an agent to work on a GitHub issue/task.
+   * The task script is built by PipelineRunner when running through
+   * the pipeline API. For direct spawning, a basic script is generated.
    */
   async spawnForTask(task) {
     const { 
@@ -493,45 +495,75 @@ class GitAgentSpawner extends AgentSpawner {
       repoUrl,
       githubToken,
       taskDescription,
-      branch = `agent/${uuidv4().slice(0, 8)}`
+      branch = `agent/${require('uuid').v4().slice(0, 8)}`
     } = task;
 
-    // Build the task script
-    const taskScript = `
-      #!/bin/bash
-      set -e
-      
-      echo "🚀 Agent starting task..."
-      
-      # Clone the repository
-      git clone --depth=1 \${REPO_URL} /workspace
-      cd /workspace
-      
-      # Create working branch
-      git checkout -b ${branch}
-      
-      # Run OpenCode with the task
-      echo "📝 Task: ${taskDescription}"
-      opencode --task "${taskDescription}"
-      
-      # Commit changes
-      git add -A
-      git commit -m "feat: ${taskDescription.slice(0, 50)}" || echo "No changes to commit"
-      
-      # Push and create PR
-      git push -u origin ${branch}
-      gh pr create --title "${taskDescription.slice(0, 50)}" --body "Automated by CreateSuite Agent" || echo "PR creation skipped"
-      
-      echo "✅ Task complete!"
-    `;
+    // If the caller already supplied a full taskScript (from PipelineRunner), use it.
+    // Otherwise build a basic one for backward compatibility.
+    const taskScript = task.taskScript || this._buildBasicTaskScript({
+      taskDescription,
+      repoUrl,
+      branch
+    });
 
-    // Store task script for the agent to execute
     return this.spawnAgent(agentType, apiKey, {
       githubToken,
       repoUrl,
       taskScript,
       taskId: task.id
     });
+  }
+
+  /**
+   * Build a basic task script (without pipeline callback integration).
+   * Used only when agents are spawned directly, not through the pipeline API.
+   */
+  _buildBasicTaskScript({ taskDescription, repoUrl, branch }) {
+    const esc = (s) => (s || '').replace(/'/g, "'\\''");
+
+    return `#!/bin/bash
+set -euo pipefail
+
+echo "=== CreateSuite Agent (direct spawn) ==="
+echo "Task: ${esc(taskDescription)}"
+
+# Clone repo
+WORK_DIR="/tmp/agent-work-\${AGENT_ID:-direct}"
+rm -rf "\${WORK_DIR}"
+if [ -n "\${GITHUB_TOKEN:-}" ]; then
+  CLONE_URL=$(echo "${esc(repoUrl)}" | sed "s|https://|https://\${GITHUB_TOKEN}@|")
+  git clone --depth=50 "\${CLONE_URL}" "\${WORK_DIR}"
+else
+  git clone --depth=50 "${esc(repoUrl)}" "\${WORK_DIR}"
+fi
+cd "\${WORK_DIR}"
+
+git config user.name "CreateSuite Agent"
+git config user.email "agent@createsuite.dev"
+git checkout -b ${esc(branch)}
+
+# Install OpenCode if needed
+if ! command -v opencode &>/dev/null; then
+  curl -fsSL https://opencode.ai/install | bash 2>&1 || true
+  export PATH="\$HOME/.opencode/bin:\$PATH"
+fi
+
+# Run task
+opencode --task '${esc(taskDescription)}' 2>&1 || echo "OpenCode exited non-zero"
+
+# Commit & push
+git add -A
+DIFF_STAT=\$(git diff --cached --stat 2>/dev/null || echo "")
+if [ -n "\${DIFF_STAT}" ]; then
+  git commit -m "feat: ${esc(taskDescription.slice(0, 50))}" -m "Automated by CreateSuite Agent"
+  git push -u origin ${esc(branch)} 2>&1 || echo "Push failed"
+  if command -v gh &>/dev/null && [ -n "\${GITHUB_TOKEN:-}" ]; then
+    gh pr create --title "[CreateSuite] ${esc(taskDescription.slice(0, 50))}" --body "Automated by CreateSuite Agent" --head ${esc(branch)} 2>&1 || echo "PR skipped"
+  fi
+fi
+
+echo "=== Done ==="
+`;
   }
 }
 

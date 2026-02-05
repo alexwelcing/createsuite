@@ -12,6 +12,7 @@ const fs = require('fs');
 const { generateAllSprites } = require('./spriteGenerator');
 const { LifecycleManager } = require('./lifecycleManager');
 const { AgentSpawner, GitAgentSpawner, AGENT_CONFIGS } = require('./agentSpawner');
+const { PipelineRunner } = require('./pipelineRunner');
 
 const app = express();
 const isProduction = process.env.NODE_ENV === 'production';
@@ -82,6 +83,9 @@ lifecycle.setupSignalHandlers();
 // Initialize agent spawner for dynamic Fly.io machine spawning
 const agentSpawner = new AgentSpawner(io);
 const gitAgentSpawner = new GitAgentSpawner(io);
+
+// Initialize pipeline runner for autonomous agent orchestration
+const pipelineRunner = new PipelineRunner(io, gitAgentSpawner, process.cwd());
 
 // Cleanup agents on shutdown
 process.on('SIGTERM', async () => {
@@ -333,7 +337,7 @@ app.post('/api/providers/mark-authenticated', (req, res) => {
 });
 
 // POST /api/activate - Activate a provider with a task
-app.post('/api/activate', (req, res) => {
+app.post('/api/activate', async (req, res) => {
   try {
     const { providerId, taskId, skillName } = req.body;
 
@@ -594,6 +598,99 @@ app.post('/api/lifecycle/notify', async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
+});
+
+// ==================== AGENT CALLBACK API ====================
+// These endpoints are called BY agents (running in Fly.io or locally)
+// to report their status back to the pipeline runner.
+
+// POST /api/agent/status — agent heartbeat / progress update
+app.post('/api/agent/status', (req, res) => {
+  try {
+    const { agentId, taskId, status, message } = req.body;
+    if (!agentId) {
+      return res.status(400).json({ success: false, error: 'agentId required' });
+    }
+
+    pipelineRunner.agentHeartbeat(agentId, { taskId, status, message });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/agent/complete — agent reports task completion
+app.post('/api/agent/complete', (req, res) => {
+  try {
+    const { agentId, taskId, commitHash, branch } = req.body;
+    if (!agentId) {
+      return res.status(400).json({ success: false, error: 'agentId required' });
+    }
+
+    const found = pipelineRunner.agentComplete(agentId, { taskId, commitHash, branch });
+    res.json({ success: true, found });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/agent/fail — agent reports task failure
+app.post('/api/agent/fail', (req, res) => {
+  try {
+    const { agentId, taskId, error: agentError } = req.body;
+    if (!agentId) {
+      return res.status(400).json({ success: false, error: 'agentId required' });
+    }
+
+    const found = pipelineRunner.agentFail(agentId, { taskId, error: agentError });
+    res.json({ success: true, found });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==================== PIPELINE API ====================
+// API-driven pipeline triggering — no CLI required.
+// Call POST /api/pipeline/start and the agents do the rest.
+
+// POST /api/pipeline/start — kick off a new pipeline
+app.post('/api/pipeline/start', async (req, res) => {
+  try {
+    const { repoUrl, goal, provider, model, githubToken, maxAgents, agentType } = req.body;
+
+    if (!repoUrl || !goal) {
+      return res.status(400).json({ success: false, error: 'repoUrl and goal are required' });
+    }
+
+    const result = await pipelineRunner.startPipeline({
+      repoUrl,
+      goal,
+      provider,
+      model,
+      githubToken: githubToken || process.env.GITHUB_TOKEN,
+      maxAgents: maxAgents || 3,
+      agentType: agentType || 'zai'
+    });
+
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/pipeline/status/:id — get pipeline status
+app.get('/api/pipeline/status/:id', (req, res) => {
+  const pipeline = pipelineRunner.getPipeline(req.params.id);
+  if (!pipeline) {
+    return res.status(404).json({ success: false, error: 'Pipeline not found' });
+  }
+  res.json({ success: true, data: pipeline });
+});
+
+// GET /api/pipeline/list — list all pipelines
+app.get('/api/pipeline/list', (req, res) => {
+  const pipelines = pipelineRunner.listPipelines();
+  res.json({ success: true, data: pipelines });
 });
 
 // ==================== AGENT SPAWNING API ====================
