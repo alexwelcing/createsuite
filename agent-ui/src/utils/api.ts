@@ -1,11 +1,16 @@
 /**
- * Path normalizer for API requests; can be extended for base URLs later.
- * @param path Relative API path.
+ * API utility functions for the agent-ui
  */
-export const apiUrl = (path: string) => {
+
+/**
+ * Constructs an API URL with the correct base path.
+ * Normalizes paths to ensure they start with '/'.
+ * Can be extended to support custom API hosts if needed.
+ */
+export function apiUrl(path: string): string {
   const normalizedPath = (path || '').trim();
   if (!normalizedPath) {
     return '/';
   }
   return normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`;
-};
+}

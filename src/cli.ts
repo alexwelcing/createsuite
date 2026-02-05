@@ -13,10 +13,11 @@ import { ConvoyManager } from './convoyManager';
 import { GitIntegration } from './gitIntegration';
 import { OAuthManager } from './oauthManager';
 import { ProviderManager } from './providerManager';
-import { TaskStatus, TaskPriority, ConvoyStatus, AgentStatus, Task } from './types';
+import { TaskStatus, TaskPriority, ConvoyStatus, AgentStatus, AgentRuntime, Task } from './types';
 import { SmartRouter, WorkflowType } from './smartRouter';
 
 const execAsync = promisify(exec);
+const VALID_AGENT_RUNTIMES = ['local', 'fly'];
 
 const program = new Command();
 
@@ -210,19 +211,43 @@ agentCmd
   .description('Create a new agent')
   .argument('<name>', 'Agent name')
   .option('-c, --capabilities <caps>', 'Comma-separated capabilities')
+  .option('--runtime <runtime>', 'Agent runtime (local|fly)')
+  .option('--fly-app <name>', 'Fly app name for this agent (implies runtime fly)')
   .action(async (name, options) => {
     const workspaceRoot = getWorkspaceRoot();
     const orchestrator = new AgentOrchestrator(workspaceRoot);
     const gitIntegration = new GitIntegration(workspaceRoot);
     
     const capabilities = options.capabilities ? options.capabilities.split(',') : ['general'];
+    const runtimeInput = options.runtime ? options.runtime.toLowerCase() : undefined;
+    if (runtimeInput && !VALID_AGENT_RUNTIMES.includes(runtimeInput)) {
+      console.log(chalk.red(`Invalid runtime: ${runtimeInput}. Use ${VALID_AGENT_RUNTIMES.join(' or ')}.`));
+      return;
+    }
+    if (options.flyApp && runtimeInput === 'local') {
+      console.log(chalk.red('fly-app cannot be used with local runtime.'));
+      return;
+    }
+    let runtime: AgentRuntime | undefined;
+    if (runtimeInput === 'fly' || options.flyApp) {
+      runtime = AgentRuntime.FLY;
+    } else if (runtimeInput === 'local') {
+      runtime = AgentRuntime.LOCAL;
+    }
     
-    const agent = await orchestrator.createAgent(name, capabilities);
+    const agent = await orchestrator.createAgent(name, capabilities, {
+      runtime,
+      flyAppName: options.flyApp
+    });
     await gitIntegration.commitTaskChanges(`Created agent: ${agent.name} (${agent.id})`);
     
     console.log(chalk.green(`✓ Agent created: ${agent.name}`));
     console.log(chalk.gray(`  ID: ${agent.id}`));
     console.log(chalk.gray(`  Capabilities: ${agent.capabilities.join(', ')}`));
+    console.log(chalk.gray(`  Runtime: ${agent.runtime}`));
+    if (agent.flyAppName) {
+      console.log(chalk.gray(`  Fly app: ${agent.flyAppName}`));
+    }
   });
 
 agentCmd
@@ -249,6 +274,10 @@ agentCmd
       
       console.log(`${chalk.bold(agent.name)} (${agent.id})`);
       console.log(`  Status: ${statusColor(agent.status)}`);
+      console.log(`  Runtime: ${agent.runtime}`);
+      if (agent.flyAppName) {
+        console.log(`  Fly app: ${agent.flyAppName}`);
+      }
       if (agent.currentTask) {
         console.log(`  Current task: ${agent.currentTask}`);
       }
