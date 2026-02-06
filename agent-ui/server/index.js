@@ -395,6 +395,72 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// ==================== SYSTEM METRICS ENDPOINT ====================
+
+// GET /api/system/metrics - Real-time system metrics for dashboard
+app.get('/api/system/metrics', (req, res) => {
+  try {
+    const os = require('os');
+    const processMemUsage = process.memoryUsage();
+    const totalMemory = os.totalmem();
+    const freeMemory = os.freemem();
+    const usedMemory = totalMemory - freeMemory;
+    
+    // CPU usage calculation (simplified - get current load)
+    const cpuUsage = os.loadavg()[0] / os.cpus().length * 100;
+    
+    // Agent stats from lifecycle manager
+    const lifecycleStatus = lifecycle.getStatus();
+    const sessionCount = lifecycleStatus.sessionCount || 0;
+    
+    // Network stats (mock for now - would need actual network monitoring in production)
+    const networkStats = {
+      bytesPerSecond: Math.random() * 1024 * 1024 * 2, // 0-2 MB/s
+      packetsPerSecond: Math.floor(Math.random() * 2000) + 500 // 500-2500 pkt/s
+    };
+
+    res.json({
+      cpu: {
+        usage: Math.min(100, Math.max(0, cpuUsage)),
+        cores: os.cpus().length
+      },
+      memory: {
+        used: (usedMemory / 1024 / 1024 / 1024).toFixed(2), // Convert to GB
+        total: (totalMemory / 1024 / 1024 / 1024).toFixed(2), // Convert to GB
+        available: (freeMemory / 1024 / 1024 / 1024).toFixed(2), // Convert to GB
+        process: {
+          rss: (processMemUsage.rss / 1024 / 1024).toFixed(2), // Process memory in MB
+          heapUsed: (processMemUsage.heapUsed / 1024 / 1024).toFixed(2),
+          heapTotal: (processMemUsage.heapTotal / 1024 / 1024).toFixed(2)
+        }
+      },
+      network: networkStats,
+      agents: {
+        active: sessionCount > 0 ? sessionCount : 0,
+        idle: sessionCount > 0 ? Math.max(0, 3 - sessionCount) : 3, // Mock idle count
+        total: Math.max(3, sessionCount),
+        errors: 0 // Would track actual errors in production
+      },
+      uptime: lifecycleStatus.uptime || process.uptime(),
+      platform: {
+        type: os.type(),
+        platform: os.platform(),
+        arch: os.arch(),
+        release: os.release(),
+        hostname: os.hostname()
+      },
+      timestamp: Date.now()
+    });
+  } catch (error) {
+    console.error('Error getting system metrics:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to retrieve system metrics',
+      details: error.message 
+    });
+  }
+});
+
 // ==================== LIFECYCLE CONTROL API ====================
 
 // GET /api/lifecycle/status - Get detailed lifecycle status

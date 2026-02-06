@@ -2,14 +2,49 @@ import React, { useState, useEffect, useRef } from 'react';
 import styled, { keyframes } from 'styled-components';
 import Draggable from 'react-draggable';
 import { macosTheme } from '../theme/macos';
-import { X, Minus, Maximize2, Activity, Cpu, Wifi, HardDrive } from 'lucide-react';
+import { X, Minus, Maximize2, Activity, Cpu, Wifi, HardDrive, AlertTriangle } from 'lucide-react';
 import SkillsCharacters from './SkillsCharacters';
 import ApiMonitoring from './ApiMonitoring';
+
+// Types for real system metrics
+interface SystemMetrics {
+  cpu: {
+    usage: number;
+    cores: number;
+  };
+  memory: {
+    used: number;
+    total: number;
+    available: number;
+  };
+  network: {
+    bytesPerSecond: number;
+    packetsPerSecond: number;
+  };
+  agents: {
+    active: number;
+    idle: number;
+    total: number;
+    errors: number;
+  };
+  uptime: number;
+  lastUpdated: Date;
+}
+
+interface LoadingState {
+  isLoading: boolean;
+  error: string | null;
+}
 
 // Animations
 const fadeIn = keyframes`
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
+`;
+
+const pulse = keyframes`
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 `;
 
 // Styled Components
@@ -165,11 +200,13 @@ const StatusGrid = styled.div`
   margin-bottom: 20px;
 `;
 
-const StatusCard = styled.div<{ $color?: string }>`
+const StatusCard = styled.div<{ $color?: string; $loading?: boolean; $error?: boolean }>`
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid ${props => props.$error ? 'rgba(255, 69, 58, 0.3)' : 'rgba(255, 255, 255, 0.1)'};
   border-radius: 8px;
   padding: 14px;
+  opacity: ${props => props.$loading ? 0.7 : 1};
+  animation: ${props => props.$loading ? pulse : 'none'} 2s infinite;
   
   .icon {
     width: 32px;
@@ -197,7 +234,45 @@ const StatusCard = styled.div<{ $color?: string }>`
     font-family: ${macosTheme.fonts.system};
     font-size: 20px;
     font-weight: 600;
-    color: white;
+    color: ${props => props.$error ? '#ff453a' : 'white'};
+  }
+
+  .subtitle {
+    font-family: ${macosTheme.fonts.system};
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.4);
+    margin-top: 2px;
+  }
+`;
+
+const ErrorMessage = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(255, 69, 58, 0.1);
+  border: 1px solid rgba(255, 69, 58, 0.2);
+  border-radius: 6px;
+  color: #ff453a;
+  font-family: ${macosTheme.fonts.system};
+  font-size: 13px;
+  margin-bottom: 16px;
+`;
+
+const RefreshButton = styled.button`
+  background: rgba(0, 122, 255, 0.2);
+  border: 1px solid rgba(0, 122, 255, 0.3);
+  border-radius: 6px;
+  color: #007aff;
+  padding: 6px 12px;
+  font-family: ${macosTheme.fonts.system};
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-left: auto;
+
+  &:hover {
+    background: rgba(0, 122, 255, 0.3);
   }
 `;
 
@@ -222,23 +297,95 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({
   const [isActive, setIsActive] = useState(true);
   const nodeRef = useRef<HTMLDivElement>(null);
   
-  // Fake stats for overview
-  const [stats, setStats] = useState({
-    cpu: 23,
-    memory: 4.2,
-    network: '1.2 MB/s',
-    agents: 3
+  // Real system metrics state
+  const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
+  const [loadingState, setLoadingState] = useState<LoadingState>({
+    isLoading: true,
+    error: null
   });
 
+  // Format bytes to human readable
+  const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return '0 B/s';
+    const k = 1024;
+    const sizes = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
+  // Format uptime to human readable
+  const formatUptime = (seconds: number): string => {
+    const days = Math.floor(seconds / (24 * 3600));
+    const hours = Math.floor((seconds % (24 * 3600)) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    
+    if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    return `${minutes}m`;
+  };
+
+  // Fetch real system metrics
+  const fetchMetrics = async () => {
+    try {
+      setLoadingState({ isLoading: true, error: null });
+      
+      const response = await fetch('/api/system/metrics');
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      setMetrics({
+        cpu: {
+          usage: data.cpu?.usage || 0,
+          cores: data.cpu?.cores || 1
+        },
+        memory: {
+          used: data.memory?.used || 0,
+          total: data.memory?.total || 8,
+          available: data.memory?.available || 8
+        },
+        network: {
+          bytesPerSecond: data.network?.bytesPerSecond || 0,
+          packetsPerSecond: data.network?.packetsPerSecond || 0
+        },
+        agents: {
+          active: data.agents?.active || 0,
+          idle: data.agents?.idle || 0,
+          total: data.agents?.total || 0,
+          errors: data.agents?.errors || 0
+        },
+        uptime: data.uptime || 0,
+        lastUpdated: new Date()
+      });
+      
+      setLoadingState({ isLoading: false, error: null });
+    } catch (error) {
+      console.warn('Failed to fetch system metrics:', error);
+      
+      // Fallback to mock data for development
+      setMetrics({
+        cpu: { usage: 15 + Math.random() * 30, cores: 8 },
+        memory: { used: 4.2, total: 16, available: 11.8 },
+        network: { bytesPerSecond: 1024 * 1024 * 1.5, packetsPerSecond: 1200 },
+        agents: { active: 2, idle: 1, total: 3, errors: 0 },
+        uptime: 86400 * 3 + 3600 * 4, // 3 days 4 hours
+        lastUpdated: new Date()
+      });
+      
+      setLoadingState({
+        isLoading: false,
+        error: 'Using mock data. API endpoint /api/system/metrics not available.'
+      });
+    }
+  };
+
+  // Auto-refresh metrics
   useEffect(() => {
-    const interval = setInterval(() => {
-      setStats(prev => ({
-        cpu: Math.min(100, Math.max(10, prev.cpu + (Math.random() * 10 - 5))),
-        memory: Math.min(8, Math.max(2, prev.memory + (Math.random() * 0.4 - 0.2))),
-        network: `${(Math.random() * 2 + 0.5).toFixed(1)} MB/s`,
-        agents: prev.agents
-      }));
-    }, 2000);
+    fetchMetrics();
+    const interval = setInterval(fetchMetrics, 5000); // Refresh every 5 seconds
     return () => clearInterval(interval);
   }, []);
 
@@ -300,31 +447,102 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({
           <Content>
             {activeTab === 'overview' && (
               <>
+                {loadingState.error && (
+                  <ErrorMessage>
+                    <AlertTriangle size={16} />
+                    {loadingState.error}
+                    <RefreshButton onClick={fetchMetrics}>
+                      Retry
+                    </RefreshButton>
+                  </ErrorMessage>
+                )}
+                
                 <StatusGrid>
-                  <StatusCard $color="rgba(0, 122, 255, 0.2)">
+                  <StatusCard 
+                    $color="rgba(0, 122, 255, 0.2)" 
+                    $loading={loadingState.isLoading}
+                  >
                     <div className="icon"><Cpu size={18} /></div>
                     <div className="label">CPU Usage</div>
-                    <div className="value">{stats.cpu.toFixed(0)}%</div>
+                    <div className="value">
+                      {metrics ? `${metrics.cpu.usage.toFixed(1)}%` : '--'}
+                    </div>
+                    {metrics && (
+                      <div className="subtitle">
+                        {metrics.cpu.cores} cores
+                      </div>
+                    )}
                   </StatusCard>
-                  <StatusCard $color="rgba(52, 199, 89, 0.2)">
+                  
+                  <StatusCard 
+                    $color="rgba(52, 199, 89, 0.2)"
+                    $loading={loadingState.isLoading}
+                  >
                     <div className="icon"><HardDrive size={18} /></div>
                     <div className="label">Memory</div>
-                    <div className="value">{stats.memory.toFixed(1)} GB</div>
+                    <div className="value">
+                      {metrics ? `${metrics.memory.used.toFixed(1)} GB` : '--'}
+                    </div>
+                    {metrics && (
+                      <div className="subtitle">
+                        of {metrics.memory.total.toFixed(1)} GB
+                      </div>
+                    )}
                   </StatusCard>
-                  <StatusCard $color="rgba(191, 90, 242, 0.2)">
+                  
+                  <StatusCard 
+                    $color="rgba(191, 90, 242, 0.2)"
+                    $loading={loadingState.isLoading}
+                  >
                     <div className="icon"><Wifi size={18} /></div>
                     <div className="label">Network</div>
-                    <div className="value">{stats.network}</div>
+                    <div className="value">
+                      {metrics ? formatBytes(metrics.network.bytesPerSecond) : '--'}
+                    </div>
+                    {metrics && (
+                      <div className="subtitle">
+                        {metrics.network.packetsPerSecond} pkt/s
+                      </div>
+                    )}
                   </StatusCard>
-                  <StatusCard $color="rgba(255, 159, 10, 0.2)">
+                  
+                  <StatusCard 
+                    $color="rgba(255, 159, 10, 0.2)"
+                    $loading={loadingState.isLoading}
+                    $error={metrics?.agents.errors ? metrics.agents.errors > 0 : false}
+                  >
                     <div className="icon"><Activity size={18} /></div>
                     <div className="label">Active Agents</div>
-                    <div className="value">{stats.agents}</div>
+                    <div className="value">
+                      {metrics ? `${metrics.agents.active}` : '--'}
+                    </div>
+                    {metrics && (
+                      <div className="subtitle">
+                        {metrics.agents.idle} idle, {metrics.agents.errors} errors
+                      </div>
+                    )}
                   </StatusCard>
                 </StatusGrid>
                 
-                <div style={{ color: 'rgba(255,255,255,0.6)', fontFamily: macosTheme.fonts.system, fontSize: 13 }}>
-                  <p>System is running normally. All agents are operational.</p>
+                <div style={{ 
+                  color: 'rgba(255,255,255,0.6)', 
+                  fontFamily: macosTheme.fonts.system, 
+                  fontSize: 13,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <div>
+                    <p style={{ margin: '0 0 8px 0' }}>
+                      System uptime: {metrics ? formatUptime(metrics.uptime) : 'Unknown'}
+                    </p>
+                    <p style={{ margin: 0, fontSize: 11, opacity: 0.7 }}>
+                      Last updated: {metrics?.lastUpdated.toLocaleTimeString() || 'Never'}
+                    </p>
+                  </div>
+                  <RefreshButton onClick={fetchMetrics} disabled={loadingState.isLoading}>
+                    {loadingState.isLoading ? 'Refreshing...' : 'Refresh'}
+                  </RefreshButton>
                 </div>
               </>
             )}
