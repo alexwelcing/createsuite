@@ -103,6 +103,39 @@ npm run start tour
 - User can control playback (play/pause/seek)
 - Video displays all scenes smoothly
 
+### 5. Testing the Agent UI
+
+Test the Agent UI functionality:
+
+1. **Install Dependencies:**
+   ```bash
+   cd agent-ui
+   npm install
+   cd server && npm install && cd ..
+   ```
+
+2. **Start the Development Servers:**
+   Open two terminal windows:
+   
+   *Terminal 1 (Backend):*
+   ```bash
+   cd agent-ui/server
+   node index.js
+   ```
+
+   *Terminal 2 (Frontend):*
+   ```bash
+   cd agent-ui
+   npm run dev
+   ```
+
+3. **Verify Functionality:**
+   - Open `http://localhost:5173`
+   - Check if the "Welcome Wizard" appears
+   - Open a terminal window (`Ctrl+N` or desktop icon)
+   - Verify terminal commands work (e.g., `ls`, `pwd`)
+   - Check "Agent Dashboard" access
+
 ## Verifying Agent Skills Configuration
 
 Check that agent skills are properly defined:

@@ -8,6 +8,9 @@ This implementation adds a comprehensive video tour system to CreateSuite using 
 
 ### 1. Remotion Video Composition (`remotion/` directory)
 
+**Overview:**
+Remotion is used to programmatically generate video content using React components. This allows for dynamic, version-controlled video creation that evolves with the codebase.
+
 **Files Created:**
 - `remotion/src/Root.tsx` - Main Remotion root component
 - `remotion/src/CreateSuiteTour.tsx` - Complete video composition with all scenes
@@ -28,6 +31,12 @@ This implementation adds a comprehensive video tour system to CreateSuite using 
 4. **Convoy Orchestration (15-20s):** Demonstrate task grouping
 5. **CLI Demo (20-25s):** Show command examples
 6. **Call to Action (25-30s):** Installation instructions and next steps
+
+**Customization:**
+To modify the video content:
+- **Edit Scenes:** Modify components in `remotion/src/` to change text, colors, or animations.
+- **Change Duration:** Update the `durationInFrames` prop in `remotion/src/Root.tsx`.
+- **Adjust Assets:** Replace images or fonts in the `public/` directory or import new assets directly.
 
 **Code Quality:**
 - Extracted timing constants for easy maintenance
