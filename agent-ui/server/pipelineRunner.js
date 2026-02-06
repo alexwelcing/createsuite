@@ -46,8 +46,8 @@ class PipelineRunner {
       id: pipelineId,
       repoUrl,
       goal,
-      provider: provider || 'anthropic',
-      model: model || 'claude-sonnet-4-20250514',
+      provider: provider || 'github-copilot',
+      model: model || 'claude-sonnet-4',
       githubToken,
       agentType: agentType || 'claude',
       maxAgents: maxAgents || 3,
@@ -258,20 +258,22 @@ class PipelineRunner {
       callbackBaseUrl
     });
 
-    // If FLY_API_TOKEN is present, spawn remote via Fly.io
+    // If FLY_API_TOKEN is present, try spawning remote via Fly.io
     if (process.env.FLY_API_TOKEN && this.gitAgentSpawner) {
       // Look up API key from stored credentials
       const apiKey = this._getApiKey(agentType);
       if (!apiKey) {
-        throw new Error(`No API key configured for agent type "${agentType}"`);
-      }
+        console.log(`[PipelineRunner] No API key for "${agentType}" — falling back to local spawn`);
+        // Fall through to local spawning below
+      } else {
 
-      return await this.gitAgentSpawner.spawnAgent(agentType, apiKey, {
-        githubToken,
-        repoUrl,
-        taskScript,
-        taskId: task.id
-      });
+        return await this.gitAgentSpawner.spawnAgent(agentType, apiKey, {
+          githubToken,
+          repoUrl,
+          taskScript,
+          taskId: task.id
+        });
+      }
     }
 
     // Otherwise, run locally as a managed child process
@@ -303,8 +305,8 @@ class PipelineRunner {
       AGENT_ID: agentId,
       ASSIGNED_TASK: taskId,
       REPO_URL: repoUrl,
-      OPENCODE_PROVIDER: provider || 'anthropic',
-      OPENCODE_MODEL: model || 'claude-sonnet-4-20250514',
+      OPENCODE_PROVIDER: provider || 'github-copilot',
+      OPENCODE_MODEL: model || 'claude-sonnet-4',
       CALLBACK_BASE_URL: callbackBaseUrl,
       ...(githubToken && { GITHUB_TOKEN: githubToken })
     };
@@ -645,7 +647,8 @@ exit 0
         openai: 'openai',
         gemini: 'google',
         huggingface: 'huggingface',
-        zai: 'anthropic'  // Z.ai now routes through Anthropic
+        zai: 'anthropic',
+        'github-copilot': 'github-copilot'
       };
       const provider = providerMapping[agentType] || agentType;
       const entry = creds[provider];
@@ -655,7 +658,8 @@ exit 0
           anthropic: 'ANTHROPIC_API_KEY',
           openai: 'OPENAI_API_KEY',
           google: 'GOOGLE_API_KEY',
-          huggingface: 'HF_TOKEN'
+          huggingface: 'HF_TOKEN',
+          'github-copilot': 'GITHUB_TOKEN'
         };
         return process.env[envMapping[provider]] || null;
       }

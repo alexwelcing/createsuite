@@ -149,6 +149,8 @@ trigger_dogfood() {
     -d '{
       "repoUrl": "https://github.com/awelcing-alm/createsuite",
       "goal": "Add unit test coverage for core modules, fix the OAuth placeholder and hardcoded values, set up CI/CD pipeline, and polish the dashboard UI with real metrics",
+      "provider": "github-copilot",
+      "model": "claude-sonnet-4",
       "maxAgents": 4,
       "agentType": "claude"
     }' 2>&1)
