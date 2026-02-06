@@ -62,6 +62,7 @@ CreateSuite is currently undergoing professional polish to prepare for public re
 - 🔐 **OAuth Integration**: Support for coding plan authentication
 - 💬 **Terminal Orchestration**: Manage multiple OpenCode instances seamlessly
 - 🖥️ **macOS-Style Interface**: Beautiful desktop environment with drag-and-drop windows
+- 📊 **Real-time Metrics**: Live system monitoring including CPU, memory, and active sessions
 
 ## Installation
 
@@ -75,6 +76,24 @@ npm run build
 # Make CLI available globally (optional)
 npm link
 ```
+
+## Setup & Running the Dashboard
+
+To run the Agent UI dashboard with real system metrics:
+
+1.  **Start the Server:**
+    ```bash
+    cd agent-ui
+    npm install
+    npm run dev
+    ```
+    This will start both the backend server (on port 3001) and the frontend development server.
+
+2.  **Access the Dashboard:**
+    Open your browser and navigate to the URL shown in the terminal (usually `http://localhost:5173`).
+
+3.  **Monitor Metrics:**
+    Open the "System Monitor" window from the dashboard dock or menu to view real-time CPU usage, memory consumption, and active agent sessions.
 
 ## Deployment
 

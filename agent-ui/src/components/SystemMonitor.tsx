@@ -224,21 +224,41 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({
   
   // Fake stats for overview
   const [stats, setStats] = useState({
-    cpu: 23,
-    memory: 4.2,
-    network: '1.2 MB/s',
-    agents: 3
+    cpu: 0,
+    memory: 0,
+    network: '0 B/s',
+    agents: 0
   });
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setStats(prev => ({
-        cpu: Math.min(100, Math.max(10, prev.cpu + (Math.random() * 10 - 5))),
-        memory: Math.min(8, Math.max(2, prev.memory + (Math.random() * 0.4 - 0.2))),
-        network: `${(Math.random() * 2 + 0.5).toFixed(1)} MB/s`,
-        agents: prev.agents
-      }));
-    }, 2000);
+    const fetchStats = async () => {
+      try {
+        const response = await fetch('/api/health');
+        if (response.ok) {
+          const data = await response.json();
+          // Calculate CPU usage (approximated from load avg)
+          // loadavg returns [1min, 5min, 15min]
+          const loadAvg = data.cpuLoad ? data.cpuLoad[0] : 0;
+          // Rough approximation: load * 10, capped at 100
+          const cpuUsage = Math.min(100, loadAvg * 10);
+          
+          // Memory usage in GB
+          const memUsage = data.memoryUsage ? (data.memoryUsage.rss / 1024 / 1024 / 1024) : 0;
+          
+          setStats({
+            cpu: cpuUsage,
+            memory: memUsage,
+            network: `${(Math.random() * 2 + 0.5).toFixed(1)} MB/s`, // Keep fake network for now as it's hard to measure from Node
+            agents: data.sessionCount || 0
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch system stats:', error);
+      }
+    };
+
+    fetchStats();
+    const interval = setInterval(fetchStats, 2000);
     return () => clearInterval(interval);
   }, []);
 

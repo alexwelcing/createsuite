@@ -532,7 +532,8 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({
               {activeAgents.length === 0 ? (
                 <EmptyState>
                   <Zap size={24} />
-                  No agents currently running. Click an agent type above to spawn one.
+                  <div>No agents currently running.</div>
+                  <div style={{ fontSize: '12px', marginTop: '4px' }}>Click an agent type above to spawn one.</div>
                 </EmptyState>
               ) : (
                 <ActiveAgentsList>

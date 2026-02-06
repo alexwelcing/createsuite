@@ -391,6 +391,7 @@ app.get('/api/health', (req, res) => {
     sessionCount: status.sessionCount,
     lifecycleStatus: status.status,
     memoryUsage: process.memoryUsage(),
+    cpuLoad: os.loadavg(),
     version: process.env.npm_package_version || '1.0.0'
   });
 });
