@@ -1,220 +1,284 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Agent, AgentStatus, Message } from './types';
 import { ConfigManager } from './config';
-import * as child_process from 'child_process';
+import { GitIntegration } from './gitIntegration';
+import { spawn } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
+
+export interface MessageContent {
+  content: string;
+  priority: 'low' | 'normal' | 'high' | 'urgent';
+}
+
+export interface MailboxFilter {
+  unreadOnly?: boolean;
+  from?: string;
+  priority?: 'low' | 'normal' | 'high' | 'urgent';
+}
+
+export interface AgentFilter {
+  status?: AgentStatus;
+  capability?: string;
+}
+
+export interface InternalMessage {
+  id: string;
+  from: string;
+  content: string;
+  priority: 'low' | 'normal' | 'high' | 'urgent';
+  timestamp: string;
+  read: boolean;
+}
 
 /**
  * Manages agent lifecycle and orchestration
  */
 export class AgentOrchestrator {
   private configManager: ConfigManager;
+  private gitIntegration: GitIntegration;
   private workspaceRoot: string;
 
   constructor(workspaceRoot: string) {
     this.workspaceRoot = workspaceRoot;
     this.configManager = new ConfigManager(workspaceRoot);
+    this.gitIntegration = new GitIntegration(workspaceRoot);
   }
 
   /**
    * Create a new agent
    */
-  async createAgent(
-    name: string,
-    capabilities: string[] = ['general']
-  ): Promise<Agent> {
+  async createAgent(name: string, capability: string): Promise<Agent> {
+    if (!name || name.trim().length === 0) {
+      throw new Error('Agent name cannot be empty');
+    }
+
+    if (!capability || capability.trim().length === 0) {
+      throw new Error('Agent capability cannot be empty');
+    }
+
     const agent: Agent = {
-      id: uuidv4(),
+      id: this.generateAgentId(),
       name,
       status: AgentStatus.IDLE,
       mailbox: [],
-      capabilities,
-      createdAt: new Date()
+      capabilities: [capability],
+      createdAt: new Date(),
+      terminalPid: undefined,
+      currentTask: undefined
     };
 
     await this.configManager.saveAgent(agent);
+    
+    try {
+      await this.gitIntegration.createAgentBranch(agent.id);
+      await this.gitIntegration.commitAgentChanges(agent.id, `Agent created: ${agent.name}`);
+    } catch (error) {
+      // Git operations are not critical for agent creation
+      console.warn(`Git integration failed for agent ${agent.id}:`, error);
+    }
+
     return agent;
   }
 
   /**
-   * Get agent by ID
-   */
-  async getAgent(agentId: string): Promise<Agent | null> {
-    return await this.configManager.loadAgent(agentId);
-  }
-
-  /**
-   * Update agent status
+   * Update agent with new properties
    */
   async updateAgent(agentId: string, updates: Partial<Agent>): Promise<Agent> {
-    const agent = await this.getAgent(agentId);
+    const agent = await this.configManager.loadAgent(agentId);
     if (!agent) {
-      throw new Error(`Agent not found: ${agentId}`);
+      throw new Error('Agent not found');
     }
 
-    const updatedAgent = {
-      ...agent,
-      ...updates
-    };
+    // Validate status transitions
+    if (updates.status) {
+      if (agent.status === AgentStatus.OFFLINE && updates.status === AgentStatus.WORKING) {
+        throw new Error('Cannot transition offline agent to working');
+      }
+      
+      if (!['IDLE', 'WORKING', 'OFFLINE', 'ERROR'].includes(updates.status)) {
+        throw new Error('Invalid status');
+      }
+    }
+
+    const updatedAgent = { ...agent, ...updates };
 
     await this.configManager.saveAgent(updatedAgent);
+    
+    try {
+      let commitMessage = 'Agent updated';
+      if (updates.status) {
+        commitMessage = `Agent status updated to ${updates.status}`;
+      }
+      await this.gitIntegration.commitAgentChanges(agentId, commitMessage);
+    } catch (error) {
+      console.warn(`Git integration failed for agent ${agentId}:`, error);
+    }
+
     return updatedAgent;
   }
 
   /**
-   * List all agents
+   * Send message between agents
    */
-  async listAgents(): Promise<Agent[]> {
-    return await this.configManager.listAgents();
-  }
-
-  /**
-   * Get idle agents
-   */
-  async getIdleAgents(): Promise<Agent[]> {
-    const agents = await this.listAgents();
-    return agents.filter(a => a.status === AgentStatus.IDLE);
-  }
-
-  /**
-   * Send message to agent
-   */
-  async sendMessage(
-    from: string,
-    toAgentId: string,
-    subject: string,
-    body: string
-  ): Promise<void> {
-    const agent = await this.getAgent(toAgentId);
-    if (!agent) {
-      throw new Error(`Agent not found: ${toAgentId}`);
+  async sendMessage(senderId: string, receiverId: string, message: MessageContent): Promise<void> {
+    if (!message.content || message.content.trim().length === 0) {
+      throw new Error('Message content cannot be empty');
     }
 
-    const message: Message = {
+    const sender = await this.configManager.loadAgent(senderId);
+    if (!sender) {
+      throw new Error('Sender agent not found');
+    }
+
+    const receiver = await this.configManager.loadAgent(receiverId);
+    if (!receiver) {
+      throw new Error('Receiver agent not found');
+    }
+
+    const internalMessage: InternalMessage = {
       id: uuidv4(),
-      from,
-      to: toAgentId,
-      subject,
-      body,
-      timestamp: new Date(),
+      from: senderId,
+      content: message.content,
+      priority: message.priority,
+      timestamp: new Date().toISOString(),
       read: false
     };
 
-    agent.mailbox.push(message);
-    await this.configManager.saveAgent(agent);
+    receiver.mailbox.push(internalMessage as any);
+    await this.configManager.saveAgent(receiver);
   }
 
   /**
-   * Get unread messages for agent
+   * Get agent mailbox with filtering
    */
-  async getUnreadMessages(agentId: string): Promise<Message[]> {
-    const agent = await this.getAgent(agentId);
+  async getMailbox(agentId: string, filter: MailboxFilter = {}): Promise<InternalMessage[]> {
+    const agent = await this.configManager.loadAgent(agentId);
     if (!agent) {
-      throw new Error(`Agent not found: ${agentId}`);
+      throw new Error('Agent not found');
     }
 
-    return agent.mailbox.filter(m => !m.read);
+    let messages = agent.mailbox as InternalMessage[];
+
+    if (filter.unreadOnly) {
+      messages = messages.filter(m => !m.read);
+    }
+
+    if (filter.from) {
+      messages = messages.filter(m => m.from === filter.from);
+    }
+
+    if (filter.priority) {
+      messages = messages.filter(m => m.priority === filter.priority);
+    }
+
+    return messages;
   }
 
   /**
-   * Mark message as read
+   * Spawn OpenCode terminal for agent (now with real implementation)
    */
-  async markMessageRead(agentId: string, messageId: string): Promise<void> {
-    const agent = await this.getAgent(agentId);
+  async spawnOpenCodeTerminal(agentId: string, script?: string): Promise<number> {
+    const agent = await this.configManager.loadAgent(agentId);
     if (!agent) {
-      throw new Error(`Agent not found: ${agentId}`);
+      throw new Error('Agent not found');
     }
 
-    const message = agent.mailbox.find(m => m.id === messageId);
-    if (message) {
-      message.read = true;
-      await this.configManager.saveAgent(agent);
-    }
-  }
+    // In development/test mode, we still simulate for now
+    // TODO: Implement real terminal spawning for production
+    if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') {
+      console.log(`Would spawn OpenCode terminal for agent ${agent.name}`);
+      if (script) {
+        console.log('Script:', script);
+      }
 
-  /**
-   * Spawn OpenCode terminal for agent
-   */
-  async spawnOpenCodeTerminal(agentId: string): Promise<number> {
-    const agent = await this.getAgent(agentId);
-    if (!agent) {
-      throw new Error(`Agent not found: ${agentId}`);
+      await this.updateAgent(agentId, {
+        terminalPid: undefined,
+        status: AgentStatus.WORKING
+      });
+
+      return 0;
     }
 
-    // Sanitize workspace root to prevent command injection
-    const sanitizedWorkspace = this.workspaceRoot.replace(/['"\\$`]/g, '\\$&');
-    
-    // Create a script to install and run OpenCode
-    const script = `
-      #!/bin/bash
-      # Install OpenCode if not already installed
-      if ! command -v opencode &> /dev/null; then
-        curl -fsSL https://opencode.ai/install | bash
-      fi
+    try {
+      // Sanitize workspace root to prevent command injection
+      const sanitizedWorkspace = this.workspaceRoot.replace(/['"\\$`]/g, '\\$&');
       
-      # Run OpenCode in the workspace
-      cd "${sanitizedWorkspace}"
-      opencode
-    `;
+      // Create OpenCode process
+      const child = spawn('opencode', [], {
+        cwd: sanitizedWorkspace,
+        detached: true,
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
 
-    // For now, we'll simulate terminal spawning
-    // In production, this would integrate with actual terminal emulators
-    console.log(`Would spawn OpenCode terminal for agent ${agent.name}`);
-    console.log('Script:', script);
+      await this.updateAgent(agentId, {
+        terminalPid: child.pid,
+        status: AgentStatus.WORKING
+      });
 
-    // Placeholder PID - use null in production until actual terminal spawning is implemented
-    const pid = undefined;
-    
-    await this.updateAgent(agentId, {
-      terminalPid: pid,
-      status: AgentStatus.WORKING
-    });
+      return child.pid || 0;
 
-    return pid || 0;
+    } catch (error) {
+      console.error(`Failed to spawn terminal for agent ${agentId}:`, error);
+      throw error;
+    }
   }
 
   /**
-   * Assign task to agent and spawn terminal
+   * Assign task to agent
    */
   async assignTaskToAgent(agentId: string, taskId: string): Promise<void> {
-    const agent = await this.getAgent(agentId);
+    const agent = await this.configManager.loadAgent(agentId);
     if (!agent) {
-      throw new Error(`Agent not found: ${agentId}`);
+      throw new Error('Agent not found');
     }
 
-    // Update agent with current task
+    if (agent.status === AgentStatus.WORKING) {
+      throw new Error('Agent is already working');
+    }
+
+    if (agent.status === AgentStatus.OFFLINE) {
+      throw new Error('Cannot assign task to offline agent');
+    }
+
     await this.updateAgent(agentId, {
       currentTask: taskId,
       status: AgentStatus.WORKING
     });
 
-    // Send message with task details
-    await this.sendMessage(
-      'system',
-      agentId,
-      'New Task Assignment',
-      `You have been assigned task: ${taskId}`
-    );
-
-    // Spawn terminal if not already running
-    if (!agent.terminalPid) {
-      await this.spawnOpenCodeTerminal(agentId);
+    try {
+      await this.gitIntegration.commitAgentChanges(agentId, `Assigned task ${taskId}`);
+    } catch (error) {
+      console.warn(`Git integration failed for agent ${agentId}:`, error);
     }
   }
 
   /**
-   * Stop agent and cleanup
+   * List agents with optional filtering
    */
-  async stopAgent(agentId: string): Promise<void> {
-    const agent = await this.getAgent(agentId);
-    if (!agent) {
-      throw new Error(`Agent not found: ${agentId}`);
+  async listAgents(filter: AgentFilter = {}): Promise<Agent[]> {
+    let agents = await this.configManager.listAgents();
+
+    if (filter.status) {
+      agents = agents.filter(a => a.status === filter.status);
     }
 
-    // Update agent status
-    await this.updateAgent(agentId, {
-      status: AgentStatus.OFFLINE,
-      currentTask: undefined,
-      terminalPid: undefined
-    });
+    if (filter.capability) {
+      agents = agents.filter(a => a.capabilities.includes(filter.capability));
+    }
+
+    return agents;
+  }
+
+  /**
+   * Generate unique agent ID
+   */
+  private generateAgentId(): string {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let result = 'agent-';
+    for (let i = 0; i < 8; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
   }
 }

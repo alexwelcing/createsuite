@@ -12,7 +12,10 @@
     "build:netlify": "mkdir -p public/docs && cp -R docs/. public/docs && cp README.md public/docs/PROJECT_README.md",
     "start": "node dist/cli.js",
     "dev": "ts-node src/cli.ts",
-    "test": "echo \"No tests yet\" && exit 0",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:integration": "jest --testPathPattern=integration",
     "postinstall": "node scripts/postinstall.js || true",
     "remotion:preview": "remotion preview remotion/src/index.ts",
     "remotion:render": "remotion render remotion/src/index.ts CreateSuiteTour public/tour.mp4",
@@ -48,10 +51,15 @@
   },
   "devDependencies": {
     "@types/inquirer": "^8.2.10",
+    "@types/jest": "^29.5.5",
     "@types/node": "^20.11.0",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
+    "@types/supertest": "^2.0.12",
     "@types/uuid": "^9.0.7",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3",
+    "ts-jest": "^29.1.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   }
