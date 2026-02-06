@@ -39,7 +39,7 @@ class PipelineRunner {
    * Start a new pipeline. Returns immediately with the pipeline ID.
    * Agents are spawned asynchronously and report back via callbacks.
    */
-  async startPipeline({ repoUrl, goal, provider, model, githubToken, maxAgents, agentType }) {
+  async startPipeline({ repoUrl, goal, provider, model, githubToken, maxAgents, agentType, tasks }) {
     const pipelineId = uuidv4().slice(0, 12);
     const now = new Date();
 
@@ -52,6 +52,7 @@ class PipelineRunner {
       githubToken,
       agentType: agentType || 'claude',
       maxAgents: maxAgents || 3,
+      explicitTasks: tasks || null,
       phase: 'planning',
       tasks: [],       // Array of { id, title, description, agentId, status, branch, commitHash, error }
       convoyId: null,
@@ -190,10 +191,12 @@ class PipelineRunner {
    * This runs async after startPipeline returns.
    */
   async _executePipeline(pipeline) {
-    const { repoUrl, goal, maxAgents, agentType, provider, model, githubToken } = pipeline;
+    const { repoUrl, goal, maxAgents, agentType, provider, model, githubToken, explicitTasks } = pipeline;
 
-    // ── Step 1: Decompose goal into tasks ──
-    const subtasks = this._decomposeGoal(goal, repoUrl);
+    // ── Step 1: Decompose goal into tasks (or use explicit tasks) ──
+    const subtasks = explicitTasks && explicitTasks.length > 0
+      ? explicitTasks.map(t => (typeof t === 'string' ? { title: t.slice(0, 80), description: t } : t))
+      : this._decomposeGoal(goal, repoUrl);
     const taskCount = Math.min(subtasks.length, maxAgents);
 
     pipeline.tasks = subtasks.slice(0, taskCount).map((sub, i) => ({
