@@ -37,9 +37,16 @@ export interface Agent {
   status: AgentStatus;
   currentTask?: string; // Task ID
   terminalPid?: number;
+  runtime?: AgentRuntime;
+  flyAppName?: string;
   mailbox: Message[];
   capabilities: string[];
   createdAt: Date;
+}
+
+export enum AgentRuntime {
+  LOCAL = 'local',
+  FLY = 'fly'
 }
 
 export enum AgentStatus {

@@ -1,7 +1,50 @@
 import { v4 as uuidv4 } from 'uuid';
-import { Agent, AgentStatus, Message } from './types';
+import { Agent, AgentRuntime, AgentStatus, Message } from './types';
 import { ConfigManager } from './config';
 import * as child_process from 'child_process';
+
+// Fly.io app names are limited to 30 characters.
+const MAX_FLY_APP_NAME_LENGTH = 30;
+const DEFAULT_FLY_APP_PREFIX = 'createsuite-agent-ui';
+const HYPHEN_LENGTH = 1;
+const REMOTE_AGENT_PID = -1;
+const AGENT_ID_SUFFIX_LENGTH = 8;
+
+/**
+ * Normalize Fly app names: lowercase, replace invalid characters with hyphens,
+ * collapse repeated hyphens, and trim leading/trailing hyphens.
+ */
+const normalizeFlyAppName = (value: string): string => {
+  const normalized = value
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  return normalized;
+};
+
+/**
+ * Build a Fly app name within Fly's length and formatting constraints.
+ * Ensures the result fits within MAX_FLY_APP_NAME_LENGTH.
+ */
+const buildFlyAppName = (
+  agentName: string,
+  agentId: string,
+  prefix: string = DEFAULT_FLY_APP_PREFIX
+): string => {
+  const idSuffix = agentId.slice(0, AGENT_ID_SUFFIX_LENGTH);
+  const normalizedPrefix = normalizeFlyAppName(prefix);
+  const normalizedName = normalizeFlyAppName(agentName);
+  const separatorCount = (normalizedPrefix ? 1 : 0) + (normalizedName ? 1 : 0);
+  const available = Math.max(0, MAX_FLY_APP_NAME_LENGTH - idSuffix.length - separatorCount);
+  const prefixLength = Math.min(normalizedPrefix.length, available);
+  const remainingForName = available - prefixLength;
+  const nameLength = Math.min(normalizedName.length, remainingForName);
+  const prefixPart = normalizedPrefix.slice(0, prefixLength);
+  const namePart = normalizedName.slice(0, nameLength);
+  const parts = [prefixPart, namePart, idSuffix].filter(Boolean);
+  return parts.join('-');
+};
 
 /**
  * Manages agent lifecycle and orchestration
@@ -20,14 +63,22 @@ export class AgentOrchestrator {
    */
   async createAgent(
     name: string,
-    capabilities: string[] = ['general']
+    capabilities: string[] = ['general'],
+    options: { runtime?: AgentRuntime; flyAppName?: string } = {}
   ): Promise<Agent> {
+    const runtime = options.runtime ?? AgentRuntime.LOCAL;
+    const agentId = uuidv4();
+    const flyAppName = runtime === AgentRuntime.FLY
+      ? (options.flyAppName || buildFlyAppName(name, agentId))
+      : undefined;
     const agent: Agent = {
-      id: uuidv4(),
+      id: agentId,
       name,
       status: AgentStatus.IDLE,
       mailbox: [],
       capabilities,
+      runtime,
+      flyAppName,
       createdAt: new Date()
     };
 
@@ -138,6 +189,13 @@ export class AgentOrchestrator {
     const agent = await this.getAgent(agentId);
     if (!agent) {
       throw new Error(`Agent not found: ${agentId}`);
+    }
+
+    if (agent.runtime === AgentRuntime.FLY) {
+      await this.updateAgent(agentId, {
+        status: AgentStatus.WORKING
+      });
+      return REMOTE_AGENT_PID;
     }
 
     // Sanitize workspace root to prevent command injection
