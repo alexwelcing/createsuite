@@ -451,6 +451,13 @@ if ! command -v bun &> /dev/null; then
 fi
 echo "Bun: $(bun --version 2>/dev/null || echo 'not available')"
 
+# Alias npm/npx to bun so OpenCode agents get fast installs
+if command -v bun &> /dev/null; then
+  npm() { bun "$@"; }
+  npx() { bunx "$@"; }
+  export -f npm npx 2>/dev/null || true
+fi
+
 # ── Step 1: Install OpenCode if needed ──
 if ! command -v opencode &> /dev/null; then
   echo "Installing OpenCode..."
@@ -479,6 +486,15 @@ cd "\${WORK_DIR}"
 # Configure git
 git config user.name "CreateSuite Agent"
 git config user.email "agent@createsuite.dev"
+
+# Write .opencode.json to force model selection
+cat > .opencode.json << 'OCEOF'
+{
+  "provider": "${esc(provider)}",
+  "model": "${esc(model)}"
+}
+OCEOF
+echo "Wrote .opencode.json: ${esc(provider)}/${esc(model)}"
 
 # ── Step 3: Create working branch ──
 echo "Creating branch \${BRANCH}..."
