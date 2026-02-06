@@ -441,8 +441,17 @@ echo "========================="
 
 report_status "started" "Agent initializing"
 
+# ── Step 0: Ensure Bun is available (fast package manager) ──
+export PATH="$HOME/.bun/bin:$HOME/.opencode/bin:$HOME/.local/bin:/usr/local/bin:$PATH"
+if ! command -v bun &> /dev/null; then
+  echo "Installing Bun..."
+  curl -fsSL https://bun.sh/install | bash 2>&1 || true
+  export PATH="$HOME/.bun/bin:$PATH"
+  hash -r 2>/dev/null || true
+fi
+echo "Bun: $(bun --version 2>/dev/null || echo 'not available')"
+
 # ── Step 1: Install OpenCode if needed ──
-export PATH="$HOME/.opencode/bin:$HOME/.local/bin:/usr/local/bin:$PATH"
 if ! command -v opencode &> /dev/null; then
   echo "Installing OpenCode..."
   report_status "running" "Installing OpenCode"
@@ -487,7 +496,7 @@ TASK_DESC='${esc(taskDescription)}'
 # Try multiple opencode invocation syntaxes (varies by version)
 if command -v opencode &> /dev/null; then
   echo "OpenCode found at: $(which opencode)"
-  opencode --task "\${TASK_DESC}" 2>&1 || \
+  opencode run -m "${esc(provider)}/${esc(model)}" "\${TASK_DESC}" 2>&1 || \
   opencode run "\${TASK_DESC}" 2>&1 || \
   opencode "\${TASK_DESC}" 2>&1 || {
     echo "All opencode invocations failed — checking for changes anyway"

@@ -690,7 +690,9 @@ app.get('/api/pipeline/status/:id', (req, res) => {
   if (!pipeline) {
     return res.status(404).json({ success: false, error: 'Pipeline not found' });
   }
-  res.json({ success: true, data: pipeline });
+  // Redact sensitive fields before sending
+  const { githubToken, ...safeData } = pipeline;
+  res.json({ success: true, data: safeData });
 });
 
 // GET /api/pipeline/list — list all pipelines
