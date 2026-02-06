@@ -55,11 +55,13 @@ CreateSuite is currently undergoing professional polish to prepare for public re
 ## Features
 
 - 🤖 **First-Class Agents**: Autonomous agents running in dedicated OpenCode terminals
+- 🚀 **Agent Dashboard**: Spawn and manage AI agents on Fly.io machines with a polished UI
 - 📋 **Git-Based Task Tracking**: Persistent task state using git-backed storage
 - 🚚 **Convoys**: Organize related tasks into groups for coordinated work
 - 📬 **Agent Mailboxes**: Communication system for inter-agent coordination
 - 🔐 **OAuth Integration**: Support for coding plan authentication
 - 💬 **Terminal Orchestration**: Manage multiple OpenCode instances seamlessly
+- 🖥️ **macOS-Style Interface**: Beautiful desktop environment with drag-and-drop windows
 
 ## Installation
 
@@ -430,7 +432,9 @@ CreateSuite has comprehensive documentation organized by topic:
 
 ### 📚 User Guides
 - [Getting Started Guide](docs/guides/GETTING_STARTED.md) - Quick start tutorial
+- [Agent Dashboard Guide](docs/guides/AGENT_DASHBOARD.md) - Manage AI agents on Fly.io
 - [Examples](docs/guides/EXAMPLES.md) - Common workflows and patterns
+- [Deployment Guide](docs/guides/DEPLOY_RENDER.md) - Deploy to production
 
 ### 🏗️ Architecture
 - [Architecture Overview](docs/architecture/ARCHITECTURE.md) - System design and components

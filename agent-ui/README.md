@@ -2,7 +2,7 @@
 
 **Your AI agents deserve a proper command center.**
 
-A nostalgic Windows 95-styled desktop environment for orchestrating AI coding agents. Run Claude, GPT, and other AI assistants in parallel terminal sessions, all from one delightfully retro interface.
+A nostalgic macOS-styled desktop environment for orchestrating AI coding agents. Run Claude, GPT, Gemini, and other AI assistants in parallel terminal sessions, all from one delightfully polished interface.
 
 ![CreateSuite Screenshot](public/og-image.svg)
 
@@ -11,9 +11,10 @@ A nostalgic Windows 95-styled desktop environment for orchestrating AI coding ag
 | Feature | Description |
 |---------|-------------|
 | 🪟 **Multi-Window Desktop** | Drag, resize, and manage multiple terminal windows |
-| 🤖 **Multi-Agent Support** | Run Claude, GPT, Gemini, and more in parallel |
+| 🤖 **Agent Dashboard** | Spawn and manage AI agents on Fly.io machines |
+| 🚀 **Multi-Agent Support** | Run Claude, GPT, Gemini, and more in parallel |
 | ⏱️ **Smart Lifecycle** | Auto-shutdown when work completes (saves 💰!) |
-| 🎨 **Windows 95 Aesthetic** | Because nostalgia is powerful |
+| 🎨 **macOS Aesthetic** | Beautiful desktop with polished interactions |
 | 🖥️ **Full Terminal** | Real shell with xterm.js + node-pty |
 | 🌐 **Deploy Anywhere** | Fly.io, Render, or run locally |
 
@@ -30,6 +31,17 @@ cd server && npm install && node index.js
 ```
 
 Then open **http://localhost:5173** — you'll see a welcome wizard! 🎉
+
+### Agent Dashboard
+
+Access the Agent Dashboard to spawn and manage AI agents:
+
+1. Open the UI
+2. Click **"Agents"** → **"🤖 Agent Dashboard"**
+3. Click an agent type to spawn it on Fly.io
+4. Monitor active agents in real-time
+
+See the [Agent Dashboard Guide](../docs/guides/AGENT_DASHBOARD.md) for detailed instructions.
 
 ### Keyboard Shortcuts
 
