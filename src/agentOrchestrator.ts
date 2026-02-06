@@ -258,11 +258,22 @@ export class AgentOrchestrator {
 
     // Sanitize workspace root to prevent command injection
     const sanitizedWorkspace = this.workspaceRoot.replace(/['"\\$`]/g, '\\$&');
-    
+
     // Build the OpenCode command with provider/model from environment
     const provider = process.env.OPENCODE_PROVIDER || 'zai-coding-plan';
     const model = process.env.OPENCODE_MODEL || 'glm-4.7';
-    const taskArg = agent.currentTask ? `--task "${agent.currentTask}"` : '';
+
+    // Load task details if assigned
+    let runCommand = 'opencode';
+    if (agent.currentTask) {
+      const task = await this.configManager.loadTask(agent.currentTask);
+      if (task) {
+        const promptText = `${task.title}\n\n${task.description}`;
+        // Escape for shell - replace single quotes with '\''
+        const escapedPrompt = promptText.replace(/'/g, "'\\''");
+        runCommand = `opencode run '${escapedPrompt}'`;
+      }
+    }
 
     const script = `
       #!/bin/bash
@@ -272,12 +283,12 @@ export class AgentOrchestrator {
         curl -fsSL https://opencode.ai/install | bash
         export PATH="$HOME/.opencode/bin:$PATH"
       fi
-      
+
       # Run OpenCode in the workspace
       cd "${sanitizedWorkspace}"
       export OPENCODE_PROVIDER="${provider}"
       export OPENCODE_MODEL="${model}"
-      opencode ${taskArg}
+      ${runCommand}
     `;
 
     // Spawn a MANAGED child process (not detached, not ignored)

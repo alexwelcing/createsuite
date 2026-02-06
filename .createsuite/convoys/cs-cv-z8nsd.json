@@ -1,0 +1,11 @@
+{
+  "id": "cs-cv-z8nsd",
+  "name": "Plan: Build an agent metrics dashboard with real-time pe",
+  "description": "Auto-generated plan for: Build an agent metrics dashboard with real-time performance tracking and implement an agent priority queueing system with task prioritization\nRepo: https://github.com/alexwelcing/createsuite",
+  "tasks": [
+    "cs-908hu",
+    "cs-7f3ad"
+  ],
+  "createdAt": "2026-02-06T16:17:09.829Z",
+  "status": "active"
+}

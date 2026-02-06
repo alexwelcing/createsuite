@@ -40,11 +40,11 @@ const UI_WEBSOCKET_URL = process.env.UI_WEBSOCKET_URL || `wss://${FLY_UI_APP_NAM
 // Agent Docker image (same image, different env vars)
 const AGENT_IMAGE = process.env.AGENT_IMAGE || `registry.fly.io/${FLY_UI_APP_NAME}:latest`;
 
-// Agent configurations
+// Agent configurations — real model identifiers that providers actually support
 const AGENT_CONFIGS = {
   claude: {
     name: 'Sisyphus',
-    model: 'claude-opus-4.5',
+    model: 'claude-sonnet-4-20250514',
     provider: 'anthropic',
     envVar: 'ANTHROPIC_API_KEY',
     description: 'Task automation and complex reasoning',
@@ -52,7 +52,7 @@ const AGENT_CONFIGS = {
   },
   openai: {
     name: 'Oracle', 
-    model: 'gpt-5.2',
+    model: 'gpt-4o',
     provider: 'openai',
     envVar: 'OPENAI_API_KEY',
     description: 'Architecture advice and debugging',
@@ -60,7 +60,7 @@ const AGENT_CONFIGS = {
   },
   gemini: {
     name: 'Engineer',
-    model: 'gemini-3-pro',
+    model: 'gemini-2.0-flash',
     provider: 'google',
     envVar: 'GOOGLE_API_KEY',
     description: 'UI/UX specialist and multimodal tasks',
@@ -68,7 +68,7 @@ const AGENT_CONFIGS = {
   },
   huggingface: {
     name: 'Artisan',
-    model: 'stable-diffusion-3.5-large',
+    model: 'stable-diffusion-xl-base-1.0',
     provider: 'huggingface',
     envVar: 'HF_TOKEN',
     description: 'Asset and image generation',
@@ -76,9 +76,9 @@ const AGENT_CONFIGS = {
   },
   zai: {
     name: 'Architect',
-    model: 'glm-4.7',
-    provider: 'zai-coding-plan',
-    envVar: 'ZAI_API_KEY',
+    model: 'claude-sonnet-4-20250514',
+    provider: 'anthropic',
+    envVar: 'ANTHROPIC_API_KEY',
     description: 'Code architecture and planning specialist',
     color: '#0066ff'
   }

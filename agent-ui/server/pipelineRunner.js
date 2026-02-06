@@ -46,10 +46,10 @@ class PipelineRunner {
       id: pipelineId,
       repoUrl,
       goal,
-      provider: provider || 'zai-coding-plan',
-      model: model || 'glm-4.7',
+      provider: provider || 'anthropic',
+      model: model || 'claude-sonnet-4-20250514',
       githubToken,
-      agentType: agentType || 'zai',
+      agentType: agentType || 'claude',
       maxAgents: maxAgents || 3,
       phase: 'planning',
       tasks: [],       // Array of { id, title, description, agentId, status, branch, commitHash, error }
@@ -303,8 +303,8 @@ class PipelineRunner {
       AGENT_ID: agentId,
       ASSIGNED_TASK: taskId,
       REPO_URL: repoUrl,
-      OPENCODE_PROVIDER: provider || 'zai-coding-plan',
-      OPENCODE_MODEL: model || 'glm-4.7',
+      OPENCODE_PROVIDER: provider || 'anthropic',
+      OPENCODE_MODEL: model || 'claude-sonnet-4-20250514',
       CALLBACK_BASE_URL: callbackBaseUrl,
       ...(githubToken && { GITHUB_TOKEN: githubToken })
     };
@@ -430,11 +430,13 @@ echo "========================="
 report_status "started" "Agent initializing"
 
 # ── Step 1: Install OpenCode if needed ──
+export PATH="$HOME/.opencode/bin:$HOME/.local/bin:/usr/local/bin:$PATH"
 if ! command -v opencode &> /dev/null; then
   echo "Installing OpenCode..."
   report_status "running" "Installing OpenCode"
   curl -fsSL https://opencode.ai/install | bash 2>&1 || true
-  export PATH="\$HOME/.opencode/bin:\$PATH"
+  export PATH="$HOME/.opencode/bin:$HOME/.local/bin:/usr/local/bin:$PATH"
+  hash -r 2>/dev/null || true
 fi
 
 # ── Step 2: Clone repository ──
@@ -469,9 +471,20 @@ export OPENCODE_PROVIDER="${esc(provider)}"
 export OPENCODE_MODEL="${esc(model)}"
 
 TASK_DESC='${esc(taskDescription)}'
-opencode --task "\${TASK_DESC}" 2>&1 || {
-  echo "OpenCode exited with non-zero — checking for changes anyway"
-}
+
+# Try multiple opencode invocation syntaxes (varies by version)
+if command -v opencode &> /dev/null; then
+  echo "OpenCode found at: $(which opencode)"
+  opencode --task "\${TASK_DESC}" 2>&1 || \
+  opencode run "\${TASK_DESC}" 2>&1 || \
+  opencode "\${TASK_DESC}" 2>&1 || {
+    echo "All opencode invocations failed — checking for changes anyway"
+  }
+else
+  echo "WARNING: opencode not found on PATH after install attempt"
+  echo "PATH=\$PATH"
+  report_status "running" "opencode not available, skipping AI execution"
+fi
 
 # ── Step 5: Commit changes ──
 echo "Checking for changes..."
@@ -576,13 +589,19 @@ exit 0
     if (/refactor|restructure|clean|organiz|simplif/i.test(lower)) {
       subtasks.push({ title: `Refactor ${repoName} codebase`, description: `Review and refactor code for clarity, maintainability, and best practices. Goal: ${goal}` });
     }
-    if (/fix|bug|issue|error|broken/i.test(lower)) {
+    if (/fix|bug|issue|error|broken|placeholder|hardcoded/i.test(lower)) {
       subtasks.push({ title: `Fix issues in ${repoName}`, description: `Identify and fix bugs, lint errors, and broken functionality. Goal: ${goal}` });
     }
     if (/document|readme|doc|guide|comment/i.test(lower)) {
       subtasks.push({ title: `Improve documentation for ${repoName}`, description: `Add or improve documentation, README, code comments, and guides. Goal: ${goal}` });
     }
-    if (/add|implement|build|create|feature|new/i.test(lower)) {
+    if (/ci[\s/]*cd|pipeline|workflow|github.actions|deploy/i.test(lower)) {
+      subtasks.push({ title: `Set up CI/CD for ${repoName}`, description: `Create or improve CI/CD pipelines including GitHub Actions workflows, automated testing, linting, and deployment. Goal: ${goal}` });
+    }
+    if (/polish|ui|dashboard|ux|design|style|visual/i.test(lower)) {
+      subtasks.push({ title: `Polish UI for ${repoName}`, description: `Improve the UI/UX, fix visual issues, update dashboard with real metrics, and enhance styling. Goal: ${goal}` });
+    }
+    if (/add|implement|build|create|feature|new/i.test(lower) && subtasks.length === 0) {
       subtasks.push({ title: `Implement: ${goal.slice(0, 80)}`, description: `Implement the following in ${repoName}: ${goal}` });
     }
     if (/performance|optimiz|speed|fast|slow/i.test(lower)) {
@@ -626,10 +645,20 @@ exit 0
         openai: 'openai',
         gemini: 'google',
         huggingface: 'huggingface',
-        zai: 'zai-coding-plan'
+        zai: 'anthropic'  // Z.ai now routes through Anthropic
       };
       const provider = providerMapping[agentType] || agentType;
       const entry = creds[provider];
+      // Also check env vars as fallback
+      if (!entry) {
+        const envMapping = {
+          anthropic: 'ANTHROPIC_API_KEY',
+          openai: 'OPENAI_API_KEY',
+          google: 'GOOGLE_API_KEY',
+          huggingface: 'HF_TOKEN'
+        };
+        return process.env[envMapping[provider]] || null;
+      }
       return typeof entry === 'object' ? entry.value : entry;
     } catch {
       return null;

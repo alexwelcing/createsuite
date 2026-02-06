@@ -46,6 +46,12 @@ if (basicAuthUser && basicAuthPass) {
 
 if (apiToken) {
   app.use('/api', (req, res, next) => {
+    // Exempt agent callback routes from bearer token auth — agents don't have the token
+    // and these endpoints are called from spawned agent processes to report status.
+    const agentCallbackPaths = ['/api/agent/status', '/api/agent/complete', '/api/agent/fail'];
+    if (agentCallbackPaths.some(p => req.path === p.replace('/api', '') || req.originalUrl.startsWith(p))) {
+      return next();
+    }
     const header = req.headers.authorization || '';
     const bearer = header.startsWith('Bearer ') ? header.slice(7) : '';
     const token = bearer || req.query.token;
@@ -221,18 +227,18 @@ app.post('/api/providers/save', (req, res) => {
 
     const existingByProvider = new Map(existing.map((p) => [p.provider, p]));
     const claudeModel = claudeTier === 'Max (20x mode)'
-      ? 'anthropic/claude-opus-4.5-max20'
-      : 'anthropic/claude-opus-4.5';
+      ? 'anthropic/claude-sonnet-4-20250514'
+      : 'anthropic/claude-sonnet-4-20250514';
 
     const modelMap = {
-      'zai-coding-plan': 'zai-coding-plan/glm-4.7',
+      'zai-coding-plan': 'anthropic/claude-sonnet-4-20250514',
       'anthropic': claudeModel,
-      'openai': 'openai/gpt-5.2',
-      'minimax': 'minimax/minimax-2.1',
-      'google': 'google/gemini-3-pro',
-      'github-copilot': 'github-copilot/claude-opus-4.5',
-      'opencode-zen': 'opencode/claude-opus-4.5',
-      'huggingface': 'huggingface/stable-diffusion-3.5-large'
+      'openai': 'openai/gpt-4o',
+      'minimax': 'minimax/minimax-01',
+      'google': 'google/gemini-2.0-flash',
+      'github-copilot': 'github-copilot/claude-sonnet-4-20250514',
+      'opencode-zen': 'opencode/claude-sonnet-4-20250514',
+      'huggingface': 'huggingface/stable-diffusion-xl-base-1.0'
     };
 
     const updatedProviders = providers.map((provider) => {
@@ -409,11 +415,11 @@ app.post('/api/activate', async (req, res) => {
 // Helper function to get provider display name
 function getProviderDisplayName(provider) {
   const names = {
-    'zai-coding-plan': 'Z.ai GLM 4.7',
-    'anthropic': 'Claude Opus/Sonnet 4.5',
-    'openai': 'OpenAI GPT-5.2',
-    'minimax': 'MiniMax 2.1',
-    'google': 'Google Gemini 3 Pro',
+    'zai-coding-plan': 'Z.ai (Anthropic)',
+    'anthropic': 'Claude Sonnet 4',
+    'openai': 'OpenAI GPT-4o',
+    'minimax': 'MiniMax',
+    'google': 'Google Gemini 2.0 Flash',
     'github-copilot': 'GitHub Copilot',
     'opencode-zen': 'OpenCode Zen',
     'huggingface': 'Hugging Face Inference'
@@ -669,7 +675,7 @@ app.post('/api/pipeline/start', async (req, res) => {
       model,
       githubToken: githubToken || process.env.GITHUB_TOKEN,
       maxAgents: maxAgents || 3,
-      agentType: agentType || 'zai'
+      agentType: agentType || 'claude'
     });
 
     res.json({ success: true, data: result });

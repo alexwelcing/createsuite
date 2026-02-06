@@ -120,7 +120,7 @@ export class SmartRouter {
 
     // Find highest scoring agent
     const sorted = Object.entries(agentScores).sort(([, a], [, b]) => b - a);
-    return sorted[0][1] > 0 ? sorted[0][0] : 'zai'; // Default to Z.ai
+    return sorted[0][1] > 0 ? sorted[0][0] : 'claude'; // Default to Claude
   }
 
   // -- Private --

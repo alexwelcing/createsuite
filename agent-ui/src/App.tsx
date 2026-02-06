@@ -28,7 +28,8 @@ import {
   Play,
   Wifi, 
   Battery,
-  Search
+  Search,
+  Activity
 } from 'lucide-react';
 
 // UI Command payload type
@@ -97,6 +98,8 @@ const AppleLogo = () => (
   </svg>
 );
 
+import AgentMetricsDashboard from './components/dashboard/AgentMetricsDashboard';
+
 interface BaseWindow {
   id: string;
   title: string;
@@ -127,7 +130,11 @@ interface SystemMonitorState extends BaseWindow {
   type: 'system-monitor';
 }
 
-type WindowState = TerminalState | ImageState | BrowserState | GlobalMapState | SystemMonitorState;
+interface DashboardState extends BaseWindow {
+  type: 'dashboard';
+}
+
+type WindowState = TerminalState | ImageState | BrowserState | GlobalMapState | SystemMonitorState | DashboardState;
 
 const isDemoRoute = () => {
   const path = window.location.pathname;
@@ -156,7 +163,7 @@ const App: React.FC = () => {
   }, []);
 
   const spawnWindow = (
-    type: 'terminal' | 'image' | 'browser' | 'global-map' | 'system-monitor',
+    type: 'terminal' | 'image' | 'browser' | 'global-map' | 'system-monitor' | 'dashboard',
     title: string,
     contentOrCommand?: string,
     customPosition?: { x: number, y: number }
@@ -189,6 +196,8 @@ const App: React.FC = () => {
         return [...prev, { ...base, type: 'browser', content: contentOrCommand || '' }];
       } else if (type === 'system-monitor') {
         return [...prev, { ...base, type: 'system-monitor' }];
+      } else if (type === 'dashboard') {
+        return [...prev, { ...base, type: 'dashboard' }];
       }
       return [...prev, { ...base, type: 'global-map' }];
     });
@@ -458,6 +467,9 @@ const App: React.FC = () => {
           <MenuItem onClick={() => { spawnWindow('system-monitor', 'Activity Monitor'); setActiveMenu(null); }}>
             <Monitor size={16} /> Activity Monitor
           </MenuItem>
+          <MenuItem onClick={() => { spawnWindow('dashboard', 'Agent Metrics'); setActiveMenu(null); }}>
+            <Activity size={16} /> Metrics Dashboard
+          </MenuItem>
         </Menu>
       )}
 
@@ -607,6 +619,24 @@ const App: React.FC = () => {
                 onClose={() => closeWindow(win.id)}
                 onFocus={() => focusWindow(win.id)}
               />
+            );
+          }
+          if (win.type === 'dashboard') {
+            return (
+              <ContentWindow
+                key={win.id}
+                id={win.id}
+                title={win.title}
+                type="custom"
+                initialPosition={win.position}
+                zIndex={win.zIndex}
+                onClose={() => closeWindow(win.id)}
+                onFocus={() => focusWindow(win.id)}
+                width={900}
+                height={600}
+              >
+                <AgentMetricsDashboard />
+              </ContentWindow>
             );
           }
           return null;

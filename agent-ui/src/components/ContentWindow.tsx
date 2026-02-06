@@ -26,12 +26,15 @@ const StyledWindowContent = styled(WindowContent)`
 interface ContentWindowProps {
   id: string;
   title: string;
-  type: 'image' | 'browser';
-  content: string; // URL for image or browser
+  type: 'image' | 'browser' | 'custom';
+  content?: string; // URL for image or browser
   onClose: (id: string) => void;
   zIndex: number;
   onFocus: (id: string) => void;
   initialPosition?: { x: number; y: number };
+  width?: number;
+  height?: number;
+  children?: React.ReactNode;
 }
 
 const ContentWindow: React.FC<ContentWindowProps> = ({ 
@@ -42,9 +45,17 @@ const ContentWindow: React.FC<ContentWindowProps> = ({
   onClose, 
   zIndex, 
   onFocus,
-  initialPosition = { x: 50, y: 50 }
+  initialPosition = { x: 50, y: 50 },
+  width,
+  height,
+  children
 }) => {
   const nodeRef = useRef<HTMLDivElement>(null);
+
+  const windowStyle = {
+    width: width ? `${width}px` : undefined,
+    height: height ? `${height}px` : undefined,
+  };
 
   return (
     <Draggable
@@ -54,7 +65,7 @@ const ContentWindow: React.FC<ContentWindowProps> = ({
       onMouseDown={() => onFocus(id)}
     >
       <div ref={nodeRef} style={{ position: 'absolute', zIndex }}>
-        <StyledWindow className='window'>
+        <StyledWindow className='window' style={windowStyle}>
           <WindowHeader className='window-header' style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ marginLeft: 4 }}>{title}</span>
             <Button onClick={() => onClose(id)} size='sm' square>
@@ -62,14 +73,15 @@ const ContentWindow: React.FC<ContentWindowProps> = ({
             </Button>
           </WindowHeader>
           <StyledWindowContent>
-            {type === 'image' && (
+            {type === 'image' && content && (
               <div style={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'auto' }}>
                 <img src={content} alt={title} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
               </div>
             )}
-            {type === 'browser' && (
+            {type === 'browser' && content && (
                <iframe src={content} style={{ width: '100%', height: '100%', border: 'none' }} title={title} />
             )}
+            {type === 'custom' && children}
           </StyledWindowContent>
         </StyledWindow>
       </div>

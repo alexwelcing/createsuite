@@ -1,0 +1,14 @@
+{
+  "id": "cs-7f3ad",
+  "title": "Optimize performance in createsuite",
+  "description": "Profile and optimize performance bottlenecks. Goal: Build an agent metrics dashboard with real-time performance tracking and implement an agent priority queueing system with task prioritization",
+  "status": "in_progress",
+  "createdAt": "2026-02-06T16:17:09.828Z",
+  "updatedAt": "2026-02-06T16:17:09.851Z",
+  "priority": "medium",
+  "tags": [
+    "performance",
+    "automated"
+  ],
+  "assignedAgent": "825adb81-e8d9-4bde-a5d3-dfec135033fd"
+}

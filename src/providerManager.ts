@@ -142,14 +142,14 @@ export class ProviderManager {
     console.log(chalk.bold.cyan('\n📋 Choose Your Providers\n'));
 
     const providerChoices = [
-      { name: '🔷 Z.ai GLM 4.7 (coding plan)', value: Provider.ZAI_GLM },
-      { name: '🟣 Claude Opus/Sonnet 4.5', value: Provider.CLAUDE },
-      { name: '🟢 OpenAI GPT-5.2', value: Provider.OPENAI },
-      { name: '🔵 MiniMax 2.1', value: Provider.MINIMAX },
-      { name: '🔴 Google Gemini 3 Pro', value: Provider.GEMINI },
+      { name: '� Claude Sonnet 4 (Anthropic)', value: Provider.CLAUDE },
+      { name: '🟢 OpenAI GPT-4o', value: Provider.OPENAI },
+      { name: '🔴 Google Gemini 2.0 Flash', value: Provider.GEMINI },
       { name: '🐙 GitHub Copilot', value: Provider.GITHUB_COPILOT },
       { name: '🧘 OpenCode Zen', value: Provider.OPENCODE_ZEN },
-      { name: '🤗 Hugging Face Inference (assets)', value: Provider.HUGGINGFACE }
+      { name: '🤗 Hugging Face Inference (assets)', value: Provider.HUGGINGFACE },
+      { name: '🔷 Z.ai (via Anthropic)', value: Provider.ZAI_GLM },
+      { name: '🔵 MiniMax', value: Provider.MINIMAX }
     ];
 
     const { selectedProviders } = await inquirer.prompt([
@@ -166,7 +166,7 @@ export class ProviderManager {
 
     const shouldInclude = (provider: Provider) => selectedProviders.includes(provider);
 
-    let claudeModel = 'anthropic/claude-opus-4.5';
+    let claudeModel = 'anthropic/claude-sonnet-4-20250514';
     if (shouldInclude(Provider.CLAUDE)) {
       const { claudeTier } = await inquirer.prompt([
         {
@@ -178,8 +178,8 @@ export class ProviderManager {
         }
       ]);
       claudeModel = claudeTier === 'Max (20x mode)'
-        ? 'anthropic/claude-opus-4.5-max20'
-        : 'anthropic/claude-opus-4.5';
+        ? 'anthropic/claude-sonnet-4-20250514'
+        : 'anthropic/claude-sonnet-4-20250514';
     }
 
     if (shouldInclude(Provider.ZAI_GLM)) {
@@ -187,7 +187,7 @@ export class ProviderManager {
         provider: Provider.ZAI_GLM,
         enabled: true,
         authenticated: false,
-        model: 'zai-coding-plan/glm-4.7'
+        model: 'anthropic/claude-sonnet-4-20250514'
       });
     }
 
@@ -205,7 +205,7 @@ export class ProviderManager {
         provider: Provider.OPENAI,
         enabled: true,
         authenticated: false,
-        model: 'openai/gpt-5.2'
+        model: 'openai/gpt-4o'
       });
     }
 
@@ -214,7 +214,7 @@ export class ProviderManager {
         provider: Provider.MINIMAX,
         enabled: true,
         authenticated: false,
-        model: 'minimax/minimax-2.1'
+        model: 'minimax/minimax-01'
       });
     }
 
@@ -223,7 +223,7 @@ export class ProviderManager {
         provider: Provider.GEMINI,
         enabled: true,
         authenticated: false,
-        model: 'google/gemini-3-pro'
+        model: 'google/gemini-2.0-flash'
       });
     }
 
@@ -232,7 +232,7 @@ export class ProviderManager {
         provider: Provider.GITHUB_COPILOT,
         enabled: true,
         authenticated: false,
-        model: 'github-copilot/claude-opus-4.5'
+        model: 'github-copilot/claude-sonnet-4-20250514'
       });
     }
 
@@ -241,7 +241,7 @@ export class ProviderManager {
         provider: Provider.OPENCODE_ZEN,
         enabled: true,
         authenticated: false,
-        model: 'opencode/claude-opus-4.5'
+        model: 'opencode/claude-sonnet-4-20250514'
       });
     }
 
@@ -250,7 +250,7 @@ export class ProviderManager {
         provider: Provider.HUGGINGFACE,
         enabled: true,
         authenticated: false,
-        model: 'huggingface/stable-diffusion-3.5-large'
+        model: 'huggingface/stable-diffusion-xl-base-1.0'
       });
     }
 

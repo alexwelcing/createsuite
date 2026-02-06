@@ -1,0 +1,14 @@
+{
+  "id": "cs-908hu",
+  "title": "Implement: Build an agent metrics dashboard with real-time performance tracking and impleme",
+  "description": "Implement the following in createsuite: Build an agent metrics dashboard with real-time performance tracking and implement an agent priority queueing system with task prioritization",
+  "status": "in_progress",
+  "createdAt": "2026-02-06T16:17:09.828Z",
+  "updatedAt": "2026-02-06T16:17:09.843Z",
+  "priority": "high",
+  "tags": [
+    "feature",
+    "automated"
+  ],
+  "assignedAgent": "2197d346-5c6b-4dac-95a3-d54e37a30882"
+}

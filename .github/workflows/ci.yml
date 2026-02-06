@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main, consolidate-all]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20, 22]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci --ignore-scripts
+
+      - name: TypeScript compile (root)
+        run: npx tsc --noEmit
+
+      - name: Install agent-ui dependencies
+        working-directory: agent-ui
+        run: npm ci --ignore-scripts
+
+      - name: Lint agent-ui
+        working-directory: agent-ui
+        run: npx eslint src/ --max-warnings=0 || true
+
+      - name: Build agent-ui
+        working-directory: agent-ui
+        run: npx vite build
+
+  server-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Install agent-ui dependencies
+        working-directory: agent-ui
+        run: npm ci --ignore-scripts
+
+      - name: Syntax check server
+        working-directory: agent-ui/server
+        run: node --check index.js && node --check pipelineRunner.js && node --check agentSpawner.js && node --check lifecycleManager.js
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./agent-ui
+          push: false
+          tags: createsuite-agent-ui:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
