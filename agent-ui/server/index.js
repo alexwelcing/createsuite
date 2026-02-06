@@ -699,6 +699,68 @@ app.get('/api/pipeline/list', (req, res) => {
   res.json({ success: true, data: pipelines });
 });
 
+// GET /api/pipeline/logs/:pipelineId — get agent logs for a pipeline
+app.get('/api/pipeline/logs/:pipelineId', (req, res) => {
+  try {
+    const pipeline = pipelineRunner.getPipeline(req.params.pipelineId);
+    if (!pipeline) {
+      return res.status(404).json({ success: false, error: 'Pipeline not found' });
+    }
+    
+    const logDir = path.join(process.cwd(), '.createsuite', 'logs');
+    const logs = {};
+    
+    for (const task of pipeline.tasks) {
+      const agentId = task.agentId;
+      if (!agentId) continue;
+      
+      const logFile = path.join(logDir, `agent-${agentId}.log`);
+      try {
+        const content = fs.readFileSync(logFile, 'utf-8');
+        // Return last 200 lines to avoid overwhelming responses
+        const lines = content.split('\n');
+        logs[agentId] = {
+          taskId: task.id,
+          taskTitle: task.title,
+          status: task.status,
+          lineCount: lines.length,
+          tail: lines.slice(-200).join('\n')
+        };
+      } catch {
+        logs[agentId] = { taskId: task.id, taskTitle: task.title, status: task.status, tail: '(no log file)' };
+      }
+    }
+    
+    res.json({ success: true, data: logs });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/pipeline/summary — high-level stats for all pipelines
+app.get('/api/pipeline/summary', (req, res) => {
+  const pipelines = pipelineRunner.listPipelines();
+  const summary = {
+    total: pipelines.length,
+    byPhase: {},
+    taskStats: { total: 0, completed: 0, running: 0, failed: 0 },
+    latestPipeline: pipelines.length > 0 ? pipelines[pipelines.length - 1].id : null
+  };
+  
+  for (const p of pipelines) {
+    summary.byPhase[p.phase] = (summary.byPhase[p.phase] || 0) + 1;
+    for (const t of (p.tasks || [])) {
+      summary.taskStats.total++;
+      if (t.status === 'completed') summary.taskStats.completed++;
+      else if (t.status === 'running') summary.taskStats.running++;
+      else if (t.status === 'failed') summary.taskStats.failed++;
+    }
+  }
+  
+  res.json({ success: true, data: summary });
+});
+
+
 // ==================== AGENT SPAWNING API ====================
 
 // GET /api/agents/configs - Get available agent configurations
