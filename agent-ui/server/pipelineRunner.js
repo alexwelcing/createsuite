@@ -340,6 +340,7 @@ class PipelineRunner {
 
     child.on('exit', (code, signal) => {
       logStream.end();
+      if (agentTimeout) clearTimeout(agentTimeout);
       console.log(`[PipelineRunner] Local agent ${agentId} exited (code=${code}, signal=${signal})`);
 
       if (code === 0) {
@@ -355,6 +356,18 @@ class PipelineRunner {
         }
       }
     });
+
+    // Safety timeout: kill agent if it runs longer than 30 minutes
+    const AGENT_TIMEOUT_MS = 30 * 60 * 1000;
+    const agentTimeout = setTimeout(() => {
+      if (!this._isTaskDone(taskId)) {
+        console.log(`[PipelineRunner] Agent ${agentId} timed out after 30m, killing...`);
+        child.kill('SIGTERM');
+        setTimeout(() => {
+          try { child.kill('SIGKILL'); } catch (_) { /* already dead */ }
+        }, 5000);
+      }
+    }, AGENT_TIMEOUT_MS);
 
     this.localProcesses.set(agentId, child);
 

@@ -8,6 +8,7 @@ import type { GlobalMapAgent, GlobalMapMessage } from './components/GlobalMapWin
 import SystemMonitor from './components/SystemMonitor';
 import LifecycleNotification from './components/LifecycleNotification';
 import SetupWizard from './components/SetupWizard';
+import GaussianBackground from './components/GaussianBackground';
 import { macosTheme } from './theme/macos';
 import { 
   Dock, 
@@ -75,22 +76,7 @@ const Desktop = styled.div`
   padding-bottom: 80px; /* Space for dock */
 `;
 
-const DesktopWallpaper = styled.div`
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-  z-index: -1;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: 
-      radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
-      radial-gradient(circle at 80% 20%, rgba(255, 107, 107, 0.2) 0%, transparent 50%),
-      radial-gradient(circle at 40% 40%, rgba(78, 205, 196, 0.15) 0%, transparent 50%);
-  }
-`;
+
 
 const AppleLogo = () => (
   <svg width="14" height="17" viewBox="0 0 14 17" fill="currentColor">
@@ -426,7 +412,7 @@ const App: React.FC = () => {
   return (
     <>
       <GlobalStyles />
-      <DesktopWallpaper />
+      <GaussianBackground />
       
       {/* macOS Menu Bar */}
       <MenuBar>

@@ -11,6 +11,7 @@
     "electron:dev": "electron electron/main.js"
   },
   "dependencies": {
+    "@mkkellogg/gaussian-splats-3d": "^0.4.7",
     "@types/uuid": "^10.0.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
@@ -22,12 +23,14 @@
     "recharts": "^3.7.0",
     "socket.io-client": "^4.8.3",
     "styled-components": "^6.3.8",
+    "three": "^0.182.0",
     "uuid": "^13.0.0",
     "xterm": "^5.3.0",
     "xterm-addon-fit": "^0.8.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@types/three": "^0.182.0",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
