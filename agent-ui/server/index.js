@@ -91,7 +91,7 @@ const agentSpawner = new AgentSpawner(io);
 const gitAgentSpawner = new GitAgentSpawner(io);
 
 // Initialize pipeline runner for autonomous agent orchestration
-const pipelineRunner = new PipelineRunner(io, gitAgentSpawner, process.cwd());
+const pipelineRunner = new PipelineRunner(io, gitAgentSpawner, process.cwd(), lifecycle);
 
 // Cleanup agents on shutdown
 process.on('SIGTERM', async () => {

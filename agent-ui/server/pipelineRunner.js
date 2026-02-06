@@ -19,10 +19,11 @@ const fs = require('fs');
 const { execSync, spawn } = require('child_process');
 
 class PipelineRunner {
-  constructor(io, gitAgentSpawner, workspaceRoot) {
+  constructor(io, gitAgentSpawner, workspaceRoot, lifecycleManager) {
     this.io = io;
     this.gitAgentSpawner = gitAgentSpawner;
     this.workspaceRoot = workspaceRoot || process.cwd();
+    this.lifecycleManager = lifecycleManager || null;
 
     // Track active pipelines: pipelineId → PipelineState
     this.pipelines = new Map();
@@ -64,6 +65,11 @@ class PipelineRunner {
     this._emitStatus(pipeline);
     this._savePipelineState(pipeline);
 
+    // Hold lifecycle manager alive while pipeline executes (4 hours max)
+    if (this.lifecycleManager) {
+      this.lifecycleManager.hold(4 * 60 * 60 * 1000, `Pipeline ${pipelineId} executing`);
+    }
+
     // Run the planning + spawning in background (non-blocking)
     this._executePipeline(pipeline).catch(err => {
       pipeline.phase = 'failed';
@@ -72,6 +78,10 @@ class PipelineRunner {
       this._emitStatus(pipeline);
       this._savePipelineState(pipeline);
       console.error(`[PipelineRunner] Pipeline ${pipelineId} failed:`, err.message);
+      // Release lifecycle hold on failure
+      if (this.lifecycleManager) {
+        this.lifecycleManager.releaseHold();
+      }
     });
 
     return { pipelineId, phase: 'planning' };
@@ -568,6 +578,14 @@ exit 0
     pipeline.completedAt = new Date();
     this._emitStatus(pipeline);
     this._savePipelineState(pipeline);
+
+    // Release lifecycle hold if no other pipelines are active
+    if (this.lifecycleManager) {
+      const anyActive = [...this.pipelines.values()].some(p => p.phase === 'executing' || p.phase === 'spawning' || p.phase === 'planning');
+      if (!anyActive) {
+        this.lifecycleManager.releaseHold();
+      }
+    }
 
     // Clean up agent mappings
     for (const task of pipeline.tasks) {
