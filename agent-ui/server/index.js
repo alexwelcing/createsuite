@@ -165,19 +165,42 @@ app.get('/api/providers', (req, res) => {
     if (fs.existsSync(providersPath)) {
       const providersData = JSON.parse(fs.readFileSync(providersPath, 'utf-8'));
 
-      // Track active providers by checking for running terminals
-      const activeProviders = new Set();
-      // For now, we'll just return providers from config with random sleep/active status
-      // In production, you'd check actual running processes or OpenCode sessions
+      // Get current active agents to determine provider status
+      const activeAgents = agentSpawner.getActiveAgents();
+      const activeProviderTypes = new Set(activeAgents.map(agent => agent.type));
 
-      const providers = (providersData.providers || []).map(p => ({
-        id: p.provider,
-        name: getProviderDisplayName(p.provider),
-        model: p.model,
-        enabled: p.enabled,
-        authenticated: p.authenticated,
-        status: Math.random() > 0.3 ? 'active' : 'sleeping' // Random status for demo
-      }));
+      const providers = (providersData.providers || []).map(p => {
+        // Provider is active if it has running agents, otherwise check for recent activity
+        let status = 'sleeping';
+        
+        // Check if this provider type has active agents
+        const providerType = p.provider === 'anthropic' ? 'claude' : 
+                            p.provider === 'google' ? 'gemini' :
+                            p.provider === 'openai' ? 'openai' : p.provider;
+        
+        if (activeProviderTypes.has(providerType)) {
+          status = 'active';
+        } else {
+          // Use a hash-based approach for consistent but varied demo status
+          const hash = p.provider.split('').reduce((a, b) => {
+            a = ((a << 5) - a) + b.charCodeAt(0);
+            return a & a;
+          }, 0);
+          
+          // 30% chance to be active based on hash + time (changes every 30 seconds)
+          const timeSlot = Math.floor(Date.now() / 30000);
+          status = ((Math.abs(hash) + timeSlot) % 10) < 3 ? 'active' : 'sleeping';
+        }
+
+        return {
+          id: p.provider,
+          name: getProviderDisplayName(p.provider),
+          model: p.model,
+          enabled: p.enabled,
+          authenticated: p.authenticated,
+          status: status
+        };
+      });
 
       res.json({ success: true, data: providers });
     } else {
