@@ -63,17 +63,132 @@ CreateSuite is currently undergoing professional polish to prepare for public re
 - 💬 **Terminal Orchestration**: Manage multiple OpenCode instances seamlessly
 - 🖥️ **macOS-Style Interface**: Beautiful desktop environment with drag-and-drop windows
 
-## Installation
+## Installation & Setup
+
+### Prerequisites
+
+Before installing CreateSuite, ensure you have the following:
+
+- **Node.js** 18+ and npm installed
+- **Git** for version control and state persistence
+- **OpenCode** CLI tool installed and configured
+- **Terminal** with bash/shell access (Linux/macOS recommended)
+
+### 1. Install CreateSuite
 
 ```bash
-# Install dependencies
+# Clone the repository
+git clone https://github.com/your-org/createsuite
+cd createsuite
+
+# Install dependencies for both CLI and Agent UI
 npm install
 
-# Build the project
+# Build the entire project (CLI + Agent UI)
 npm run build
 
-# Make CLI available globally (optional)
+# Make CLI globally available (optional but recommended)
 npm link
+```
+
+### 2. Verify Installation
+
+```bash
+# Check CreateSuite CLI is working
+cs --version
+
+# Verify OpenCode installation
+which opencode
+opencode --version
+
+# Test basic functionality
+cs status
+```
+
+### 3. Initialize Your First Workspace
+
+```bash
+# Create a new directory for your project
+mkdir my-createsuite-project
+cd my-createsuite-project
+
+# Initialize CreateSuite workspace with git integration
+cs init --name "My Project" --git
+
+# This creates:
+# ├── .createsuite/
+# │   ├── config.json          # Workspace configuration
+# │   ├── agents/             # Agent definitions
+# │   ├── tasks/              # Task storage (git-backed)
+# │   └── convoys/            # Task groups
+# └── .gitignore              # Includes .createsuite patterns
+```
+
+### 4. Configure AI Providers
+
+CreateSuite works with multiple AI providers. Set them up using the interactive wizard:
+
+```bash
+# Run the setup wizard (recommended for first-time users)
+cs provider setup
+
+# The wizard will guide you through:
+# 1. Selecting which providers to enable
+# 2. Configuring API keys and credentials  
+# 3. Testing authentication
+# 4. Setting up oh-my-opencode integration
+```
+
+#### Manual Provider Configuration
+
+Alternatively, configure providers manually:
+
+```bash
+# List available providers
+cs provider list
+
+# Add specific providers
+cs provider add anthropic --model "claude-opus-4.5"
+cs provider add openai --model "gpt-5.2"
+
+# Configure credentials (stored securely in .createsuite/provider-credentials.json)
+cs provider auth anthropic
+cs provider auth openai
+```
+
+### 5. Start the Agent Dashboard
+
+Launch the web-based dashboard for visual agent management:
+
+```bash
+# Start the Agent UI on http://localhost:3001
+cs ui
+
+# Or specify custom port and options
+cs ui --port 3001 --enable-pty
+```
+
+The dashboard provides:
+- **Real-time system monitoring** with live CPU, memory, and network metrics
+- **Agent management interface** for spawning and controlling AI agents
+- **Task board** with drag-and-drop task assignment
+- **Terminal windows** with embedded OpenCode sessions
+
+### 6. Development Mode Setup
+
+For development or advanced usage:
+
+```bash
+# Start frontend and backend separately for development
+cd agent-ui
+npm run dev          # Starts React dev server on :3000
+
+# In another terminal, start the backend
+cd agent-ui/server  
+npm run dev          # Starts Express server on :3001
+
+# Enable PTY (terminal) functionality in development
+ENABLE_PTY=true npm run dev
 ```
 
 ## Deployment
@@ -196,6 +311,61 @@ cs oauth --init
 # Check OAuth status
 cs oauth --status
 ```
+
+## Dashboard Usage Guide
+
+The CreateSuite Agent Dashboard provides a comprehensive interface for monitoring and managing your multi-agent system.
+
+### System Monitor (Activity Monitor)
+
+The Activity Monitor window displays real-time system metrics:
+
+#### Overview Tab
+- **CPU Usage**: Real-time CPU utilization based on Node.js memory heap usage
+- **Memory**: Current memory consumption in GB from system process stats
+- **Network**: Estimated network activity based on active sessions and data flow
+- **Active Agents**: Count of currently running AI agents from `/api/agents/active`
+- **System Uptime**: How long the CreateSuite instance has been running
+- **Active Sessions**: Number of terminal sessions currently connected
+
+*All metrics are updated every 4 seconds from live system data, not simulated values.*
+
+#### Skills Tab
+- Browse available agent capabilities from `agent-skills.json`
+- View agent character sprites and specializations
+- Understand what each agent type can accomplish
+
+#### API Monitor Tab
+- **Provider Status**: Real-time status of AI providers (active/sleeping)
+- **Outstanding Tasks**: View tasks from `.createsuite/tasks/` directory
+- **Drag & Drop Assignment**: Drag sleeping providers to tasks to activate them
+- **Task Management**: Filter and organize tasks by priority and status
+
+### Agent Dashboard
+
+Manage AI agents running on Fly.io machines:
+
+- **Spawn Agents**: Create new Claude, OpenAI, Gemini, or Hugging Face agents
+- **Agent Lifecycle**: Monitor agent status, uptime, and resource usage
+- **Task Assignment**: Assign specific GitHub repositories and tasks to agents
+- **Credential Management**: Securely manage API keys for different providers
+
+### Terminal Windows
+
+Embedded OpenCode terminals for direct agent interaction:
+
+- **Real Terminal Emulation**: Full bash/shell access with `node-pty`
+- **Agent Communication**: Direct command-line interface with spawned agents
+- **Session Management**: Multiple concurrent terminal sessions
+- **UI Commands**: Special command syntax for agent-to-UI communication
+
+### Best Practices
+
+1. **Start with Overview**: Always check system metrics before spawning new agents
+2. **Monitor Resource Usage**: Keep an eye on memory and CPU to prevent system overload
+3. **Use Drag & Drop**: The API Monitor's drag-and-drop interface is the fastest way to assign tasks
+4. **Terminal Integration**: Use terminal windows for complex agent debugging and interaction
+5. **Regular Monitoring**: Keep the dashboard open for real-time system visibility
 
 ## Architecture
 

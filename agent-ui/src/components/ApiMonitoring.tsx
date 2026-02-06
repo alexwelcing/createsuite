@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { apiUrl } from '../utils/api';
 
+/**
+ * Provider data structure representing an AI provider's current state
+ */
 interface ProviderData {
   id: string;
   name: string;
@@ -11,6 +14,9 @@ interface ProviderData {
   status: 'active' | 'sleeping';
 }
 
+/**
+ * Task data structure representing a CreateSuite task
+ */
 interface TaskData {
   id: string;
   title: string;
@@ -159,6 +165,17 @@ const SelectedSkill = styled.div`
   font-weight: bold;
 `;
 
+/**
+ * ApiMonitoring component provides drag-and-drop interface for assigning 
+ * tasks to AI providers. Features Windows 95-style UI with real-time updates.
+ * 
+ * Key functionality:
+ * - Displays available AI providers with their current status (active/sleeping)
+ * - Shows outstanding tasks from .createsuite/tasks directory
+ * - Drag sleeping providers to tasks to activate them
+ * - Real-time updates every 5 seconds from backend APIs
+ * - Integrates with agent spawning and lifecycle management
+ */
 const ApiMonitoring: React.FC = () => {
   const [providers, setProviders] = useState<ProviderData[]>([]);
   const [tasks, setTasks] = useState<TaskData[]>([]);
@@ -168,9 +185,23 @@ const ApiMonitoring: React.FC = () => {
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
 
+  /**
+   * Fetches provider status and outstanding tasks from backend APIs
+   * Updates component state with fresh data from:
+   * - /api/providers: AI provider configurations and status
+   * - /api/tasks: Outstanding tasks from git-backed storage
+   */
+
+  /**
+   * Fetches provider status and outstanding tasks from backend APIs
+   * Updates component state with fresh data from:
+   * - /api/providers: AI provider configurations and status
+   * - /api/tasks: Outstanding tasks from git-backed storage
+   */
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // Fetch both providers and tasks in parallel for better performance
         const [providersRes, tasksRes] = await Promise.all([
           fetch(apiUrl('/api/providers')),
           fetch(apiUrl('/api/tasks'))
@@ -179,6 +210,7 @@ const ApiMonitoring: React.FC = () => {
         const providersData = await providersRes.json();
         const tasksData = await tasksRes.json();
 
+        // Update state with fetched data
         if (providersData.success) {
           setProviders(providersData.data);
         }
@@ -187,17 +219,29 @@ const ApiMonitoring: React.FC = () => {
           setTasks(tasksData.data);
         }
       } catch (err) {
-        console.error('Failed to fetch data:', err);
+        console.error('Failed to fetch API monitoring data:', err);
       } finally {
         setLoading(false);
       }
     };
 
+    // Initial data fetch
     fetchData();
+    
+    // Set up automatic refresh every 5 seconds for real-time updates
     const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
   }, []);
 
+  /**
+   * Handles drag start for sleeping providers
+   * Only sleeping providers can be dragged to assign them to tasks
+   */
+
+  /**
+   * Handles drag start for sleeping providers
+   * Only sleeping providers can be dragged to assign them to tasks
+   */
   const handleDragStart = (provider: ProviderData, e: React.DragEvent) => {
     if (provider.status === 'sleeping') {
       setDraggedProvider(provider);
@@ -205,9 +249,18 @@ const ApiMonitoring: React.FC = () => {
     }
   };
 
+  /**
+   * Cleans up drag state when drag operation ends
+   */
   const handleDragEnd = () => {
     setDraggedProvider(null);
   };
+
+  /**
+   * Activates a provider by assigning it to a specific task
+   * Sends POST request to /api/activate with provider, task, and skill information
+   * Updates local state to reflect the provider's new active status
+   */
 
   const handleTaskSelect = async (task: TaskData) => {
     if (!draggedProvider || !selectedSkill) return;
