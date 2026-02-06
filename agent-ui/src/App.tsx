@@ -8,6 +8,7 @@ import type { GlobalMapAgent, GlobalMapMessage } from './components/GlobalMapWin
 import SystemMonitor from './components/SystemMonitor';
 import LifecycleNotification from './components/LifecycleNotification';
 import SetupWizard from './components/SetupWizard';
+import AgentDashboard from './components/AgentDashboard';
 import { macosTheme } from './theme/macos';
 import { 
   Dock, 
@@ -127,7 +128,11 @@ interface SystemMonitorState extends BaseWindow {
   type: 'system-monitor';
 }
 
-type WindowState = TerminalState | ImageState | BrowserState | GlobalMapState | SystemMonitorState;
+interface AgentDashboardState extends BaseWindow {
+  type: 'agent-dashboard';
+}
+
+type WindowState = TerminalState | ImageState | BrowserState | GlobalMapState | SystemMonitorState | AgentDashboardState;
 
 const isDemoRoute = () => {
   const path = window.location.pathname;
@@ -156,7 +161,7 @@ const App: React.FC = () => {
   }, []);
 
   const spawnWindow = (
-    type: 'terminal' | 'image' | 'browser' | 'global-map' | 'system-monitor',
+    type: 'terminal' | 'image' | 'browser' | 'global-map' | 'system-monitor' | 'agent-dashboard',
     title: string,
     contentOrCommand?: string,
     customPosition?: { x: number, y: number }
@@ -189,6 +194,8 @@ const App: React.FC = () => {
         return [...prev, { ...base, type: 'browser', content: contentOrCommand || '' }];
       } else if (type === 'system-monitor') {
         return [...prev, { ...base, type: 'system-monitor' }];
+      } else if (type === 'agent-dashboard') {
+        return [...prev, { ...base, type: 'agent-dashboard' }];
       }
       return [...prev, { ...base, type: 'global-map' }];
     });
@@ -463,6 +470,10 @@ const App: React.FC = () => {
 
       {activeMenu === 'agents' && (
         <Menu style={{ position: 'fixed', top: 28, left: 180, zIndex: 100000 }}>
+          <MenuItem onClick={() => { spawnWindow('agent-dashboard', '🤖 Agent Dashboard'); setActiveMenu(null); }}>
+            <Cpu size={16} /> Agent Dashboard
+          </MenuItem>
+          <MenuDivider />
           <MenuItem onClick={() => { spawnTerminal('Sisyphus (Claude)', 'export OPENCODE_PROVIDER=anthropic OPENCODE_MODEL=claude-opus-4.5; opencode'); setActiveMenu(null); }}>
             <Cpu size={16} /> Sisyphus (Claude)
           </MenuItem>
@@ -606,6 +617,20 @@ const App: React.FC = () => {
                 zIndex={win.zIndex}
                 onClose={() => closeWindow(win.id)}
                 onFocus={() => focusWindow(win.id)}
+              />
+            );
+          }
+          if (win.type === 'agent-dashboard') {
+            return (
+              <AgentDashboard
+                key={win.id}
+                id={win.id}
+                title={win.title}
+                initialPosition={win.position}
+                zIndex={win.zIndex}
+                onClose={() => closeWindow(win.id)}
+                onFocus={() => focusWindow(win.id)}
+                serverUrl={window.location.origin}
               />
             );
           }
