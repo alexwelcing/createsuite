@@ -15,6 +15,7 @@ import { OAuthManager } from './oauthManager';
 import { ProviderManager } from './providerManager';
 import { TaskStatus, TaskPriority, ConvoyStatus, AgentStatus, Task } from './types';
 import { SmartRouter, WorkflowType } from './smartRouter';
+import { logger } from './logger';
 
 const execAsync = promisify(exec);
 
@@ -42,7 +43,7 @@ program
     const workspaceRoot = getWorkspaceRoot();
     const name = options.name || path.basename(workspaceRoot);
     
-    console.log(chalk.blue('Initializing CreateSuite workspace...'));
+    logger.info('Initializing CreateSuite workspace', { name, workspaceRoot });
     
     const configManager = new ConfigManager(workspaceRoot);
     await configManager.initialize(name, options.repo);

@@ -5,6 +5,7 @@ import { macosTheme } from '../theme/macos';
 import { X, Minus, Maximize2, Activity, Cpu, Wifi, HardDrive } from 'lucide-react';
 import SkillsCharacters from './SkillsCharacters';
 import ApiMonitoring from './ApiMonitoring';
+import MetricsService, { CombinedMetrics } from '../services/MetricsService';
 
 // Animations
 const fadeIn = keyframes`
@@ -220,25 +221,46 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'skills' | 'apis'>('overview');
   const [isActive, setIsActive] = useState(true);
+  const [metrics, setMetrics] = useState<CombinedMetrics | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const nodeRef = useRef<HTMLDivElement>(null);
-  
-  // Fake stats for overview
-  const [stats, setStats] = useState({
-    cpu: 23,
-    memory: 4.2,
-    network: '1.2 MB/s',
-    agents: 3
-  });
+
+  const metricsService = MetricsService.getInstance();
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setStats(prev => ({
-        cpu: Math.min(100, Math.max(10, prev.cpu + (Math.random() * 10 - 5))),
-        memory: Math.min(8, Math.max(2, prev.memory + (Math.random() * 0.4 - 0.2))),
-        network: `${(Math.random() * 2 + 0.5).toFixed(1)} MB/s`,
-        agents: prev.agents
-      }));
-    }, 2000);
+    const fetchMetrics = async () => {
+      try {
+        setIsLoading(true);
+        const newMetrics = await metricsService.getMetrics();
+        setMetrics(newMetrics);
+      } catch (error) {
+        console.error('Failed to fetch metrics:', error);
+        // Fallback to minimal metrics
+        setMetrics({
+          system: {
+            cpu: { usage: 0, cores: 1, model: 'Unknown' },
+            memory: { total: 0, used: 0, available: 0, percentage: 0 },
+            network: { bytesIn: 0, bytesOut: 0, packetsIn: 0, packetsOut: 0 },
+            disk: { total: 0, used: 0, available: 0, percentage: 0 }
+          },
+          application: {
+            agents: { total: 0, active: 0, idle: 0, error: 0 },
+            tasks: { total: 0, completed: 0, inProgress: 0, failed: 0 },
+            convoys: { total: 0, active: 0, completed: 0 },
+            providers: { connected: [], totalRequests: 0, errors: 0, avgResponseTime: 0 }
+          },
+          timestamp: new Date()
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Initial fetch
+    fetchMetrics();
+
+    // Update metrics every 3 seconds
+    const interval = setInterval(fetchMetrics, 3000);
     return () => clearInterval(interval);
   }, []);
 
@@ -300,32 +322,85 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({
           <Content>
             {activeTab === 'overview' && (
               <>
-                <StatusGrid>
-                  <StatusCard $color="rgba(0, 122, 255, 0.2)">
-                    <div className="icon"><Cpu size={18} /></div>
-                    <div className="label">CPU Usage</div>
-                    <div className="value">{stats.cpu.toFixed(0)}%</div>
-                  </StatusCard>
-                  <StatusCard $color="rgba(52, 199, 89, 0.2)">
-                    <div className="icon"><HardDrive size={18} /></div>
-                    <div className="label">Memory</div>
-                    <div className="value">{stats.memory.toFixed(1)} GB</div>
-                  </StatusCard>
-                  <StatusCard $color="rgba(191, 90, 242, 0.2)">
-                    <div className="icon"><Wifi size={18} /></div>
-                    <div className="label">Network</div>
-                    <div className="value">{stats.network}</div>
-                  </StatusCard>
-                  <StatusCard $color="rgba(255, 159, 10, 0.2)">
-                    <div className="icon"><Activity size={18} /></div>
-                    <div className="label">Active Agents</div>
-                    <div className="value">{stats.agents}</div>
-                  </StatusCard>
-                </StatusGrid>
-                
-                <div style={{ color: 'rgba(255,255,255,0.6)', fontFamily: macosTheme.fonts.system, fontSize: 13 }}>
-                  <p>System is running normally. All agents are operational.</p>
-                </div>
+                {isLoading ? (
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'center', 
+                    alignItems: 'center', 
+                    height: '200px',
+                    color: 'rgba(255,255,255,0.6)',
+                    fontFamily: macosTheme.fonts.system
+                  }}>
+                    Loading metrics...
+                  </div>
+                ) : metrics ? (
+                  <>
+                    <StatusGrid>
+                      <StatusCard $color="rgba(0, 122, 255, 0.2)">
+                        <div className="icon"><Cpu size={18} /></div>
+                        <div className="label">CPU Usage</div>
+                        <div className="value">{metrics.system.cpu.usage.toFixed(1)}%</div>
+                      </StatusCard>
+                      <StatusCard $color="rgba(52, 199, 89, 0.2)">
+                        <div className="icon"><HardDrive size={18} /></div>
+                        <div className="label">Memory</div>
+                        <div className="value">{MetricsService.formatBytes(metrics.system.memory.used)}</div>
+                      </StatusCard>
+                      <StatusCard $color="rgba(191, 90, 242, 0.2)">
+                        <div className="icon"><Wifi size={18} /></div>
+                        <div className="label">Network In</div>
+                        <div className="value">{MetricsService.formatBytes(metrics.system.network.bytesIn)}</div>
+                      </StatusCard>
+                      <StatusCard $color="rgba(255, 159, 10, 0.2)">
+                        <div className="icon"><Activity size={18} /></div>
+                        <div className="label">Active Agents</div>
+                        <div className="value">{metrics.application.agents.active}</div>
+                      </StatusCard>
+                    </StatusGrid>
+                    
+                    <StatusGrid style={{ marginTop: '16px' }}>
+                      <StatusCard $color="rgba(255, 69, 58, 0.2)">
+                        <div className="icon"><HardDrive size={18} /></div>
+                        <div className="label">Total Tasks</div>
+                        <div className="value">{metrics.application.tasks.total}</div>
+                      </StatusCard>
+                      <StatusCard $color="rgba(48, 209, 88, 0.2)">
+                        <div className="icon"><Activity size={18} /></div>
+                        <div className="label">Completed</div>
+                        <div className="value">{metrics.application.tasks.completed}</div>
+                      </StatusCard>
+                      <StatusCard $color="rgba(255, 214, 10, 0.2)">
+                        <div className="icon"><Cpu size={18} /></div>
+                        <div className="label">In Progress</div>
+                        <div className="value">{metrics.application.tasks.inProgress}</div>
+                      </StatusCard>
+                      <StatusCard $color="rgba(162, 132, 94, 0.2)">
+                        <div className="icon"><Wifi size={18} /></div>
+                        <div className="label">Providers</div>
+                        <div className="value">{metrics.application.providers.connected.length}</div>
+                      </StatusCard>
+                    </StatusGrid>
+                    
+                    <div style={{ 
+                      color: 'rgba(255,255,255,0.6)', 
+                      fontFamily: macosTheme.fonts.system, 
+                      fontSize: 13,
+                      marginTop: '20px',
+                      padding: '12px',
+                      backgroundColor: 'rgba(255,255,255,0.05)',
+                      borderRadius: '6px'
+                    }}>
+                      <div style={{ marginBottom: '8px', fontWeight: 500 }}>System Status</div>
+                      <div>CPU Cores: {metrics.system.cpu.cores} | Memory: {MetricsService.formatBytes(metrics.system.memory.total)}</div>
+                      <div>Connected Providers: {metrics.application.providers.connected.join(', ') || 'None'}</div>
+                      <div>Last Updated: {metrics.timestamp.toLocaleTimeString()}</div>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ color: 'rgba(255,255,255,0.6)', fontFamily: macosTheme.fonts.system, fontSize: 13 }}>
+                    <p>Failed to load system metrics. Please check your configuration.</p>
+                  </div>
+                )}
               </>
             )}
             {activeTab === 'skills' && <SkillsCharacters />}
