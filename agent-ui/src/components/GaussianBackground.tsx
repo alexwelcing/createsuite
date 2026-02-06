@@ -16,7 +16,17 @@ const BackgroundContainer = styled.div`
   position: absolute;
   inset: 0;
   z-index: -1;
+  overflow: hidden;
+`;
+
+// CSS gradient fallback (shown until WebGL loads)
+const GradientFallback = styled.div<{ $hidden: boolean }>`
+  position: absolute;
+  inset: 0;
+  z-index: 0;
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  opacity: ${props => props.$hidden ? 0 : 1};
+  transition: opacity 1.5s ease-in-out;
   
   &::before {
     content: '';
@@ -33,14 +43,14 @@ const BackgroundContainer = styled.div`
 const CanvasContainer = styled.div`
   position: absolute;
   inset: 0;
-  z-index: -1;
+  z-index: 1;
 `;
 
 // Vignette overlay for visual polish
 const VignetteOverlay = styled.div<{ $loading: boolean }>`
   position: absolute;
   inset: 0;
-  z-index: -1;
+  z-index: 2;
   pointer-events: none;
   background: radial-gradient(circle at center, transparent 0%, rgba(0, 0, 0, 0.3) 100%);
   opacity: ${props => props.$loading ? 0 : 1};
@@ -51,7 +61,7 @@ const VignetteOverlay = styled.div<{ $loading: boolean }>`
 const LoadingOverlay = styled.div<{ $visible: boolean }>`
   position: absolute;
   inset: 0;
-  z-index: -1;
+  z-index: 3;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -355,6 +365,9 @@ const GaussianBackground: React.FC<GaussianBackgroundProps> = ({ className }) =>
 
   return (
     <BackgroundContainer className={className}>
+      {/* CSS gradient fallback — fades out when WebGL scene loads */}
+      <GradientFallback $hidden={hasWebGL && !isLoading && !loadError} />
+
       {/* WebGL Canvas Container */}
       {hasWebGL && !loadError && (
         <CanvasContainer ref={containerRef} />
