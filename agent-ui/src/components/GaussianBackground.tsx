@@ -119,9 +119,8 @@ const GaussianBackground: React.FC<GaussianBackgroundProps> = ({ className }) =>
 
   // Default splat file URLs (trying multiple sources)
   const splatUrls = [
-    'https://huggingface.co/cakewalk/splat-data/resolve/main/nike.splat',
-    'https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/datasets/input/tandt_db/train/ours_30000/point_cloud/iteration_30000/point_cloud.ply',
-    '/splats/default.ply' // Local fallback
+    '/splats/rustic-library.spz', // Primary: Rustic Library Living Room
+    '/splats/default.ply' // Procedural fallback
   ];
   
   // Mouse movement handler for parallax effect
@@ -248,8 +247,12 @@ const GaussianBackground: React.FC<GaussianBackgroundProps> = ({ className }) =>
       
       for (const url of splatUrls) {
         try {
+          const format = url.endsWith('.spz') ? SF.Spz
+            : url.endsWith('.ply') ? SF.Ply
+            : url.endsWith('.ksplat') ? SF.KSplat
+            : SF.Splat;
           await viewer.addSplatScene(url, {
-            format: url.endsWith('.ply') ? SF.Ply : SF.Splat,
+            format,
             splatAlphaRemovalThreshold: 10,
             showLoadingUI: false,
           });

@@ -41,6 +41,7 @@ declare module '@mkkellogg/gaussian-splats-3d' {
     Splat: number;
     Ply: number;
     KSplat: number;
+    Spz: number;
   };
 
   export const LogLevel: {
