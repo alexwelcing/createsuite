@@ -26,7 +26,7 @@ FROM node:20-bookworm-slim
 
 # Runtime deps: python3 for node-pty, git/gh/curl for agent operations
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 make g++ curl git bash ca-certificates \
+    python3 make g++ curl git bash ca-certificates unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # Install GitHub CLI
