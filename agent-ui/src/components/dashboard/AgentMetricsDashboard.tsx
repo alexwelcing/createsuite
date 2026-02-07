@@ -147,11 +147,14 @@ export const AgentMetricsDashboard: React.FC = () => {
     avgResponseTime: '—'
   });
 
-  const fetchData = async () => {
-    try {
-      // Fetch Tasks
-      const tasksRes = await fetch('/api/tasks');
-      const tasksData = await tasksRes.json();
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const fetchData = async () => {
+      try {
+        // Fetch Tasks
+        const tasksRes = await fetch('/api/tasks', { signal: controller.signal });
+        const tasksData = await tasksRes.json();
       if (tasksData.success && Array.isArray(tasksData.data)) {
         const tasks: QueueTask[] = tasksData.data.map((t: Record<string, unknown>) => ({
           id: t.id as string,
@@ -179,8 +182,8 @@ export const AgentMetricsDashboard: React.FC = () => {
       // Fetch Active Agents & Health (measure response time)
       const healthStart = performance.now();
       const [agentsRes, healthRes] = await Promise.all([
-        fetch('/api/agents/active'),
-        fetch('/api/health')
+        fetch('/api/agents/active', { signal: controller.signal }),
+        fetch('/api/health', { signal: controller.signal })
       ]);
       const healthLatency = Math.round(performance.now() - healthStart);
       
@@ -213,13 +216,11 @@ export const AgentMetricsDashboard: React.FC = () => {
       });
 
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
       console.error("Failed to fetch dashboard metrics", error);
     }
   };
 
-  useEffect(() => {
-    // Initial fetch + polling interval
-    const controller = new AbortController();
     fetchData();
     const interval = setInterval(fetchData, 3000);
     return () => {

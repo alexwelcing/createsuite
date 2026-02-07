@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import styled, { createGlobalStyle } from 'styled-components';
 import { v4 as uuidv4 } from 'uuid';
 import TerminalWindow from './components/TerminalWindow';
@@ -10,6 +10,7 @@ import LifecycleNotification from './components/LifecycleNotification';
 import SetupWizard from './components/SetupWizard';
 import GaussianBackground from './components/GaussianBackground';
 import AgentMetricsDashboard from './components/dashboard/AgentMetricsDashboard';
+import AgentBuddyList from './components/AgentBuddyList';
 import { macosTheme } from './theme/macos';
 import { 
   Dock, 
@@ -31,7 +32,8 @@ import {
   Wifi, 
   Battery,
   Search,
-  Activity
+  Activity,
+  Users
 } from 'lucide-react';
 
 // UI Command payload type
@@ -119,7 +121,11 @@ interface DashboardState extends BaseWindow {
   type: 'dashboard';
 }
 
-type WindowState = TerminalState | ImageState | BrowserState | GlobalMapState | SystemMonitorState | DashboardState;
+interface BuddyListState extends BaseWindow {
+  type: 'buddy-list';
+}
+
+type WindowState = TerminalState | ImageState | BrowserState | GlobalMapState | SystemMonitorState | DashboardState | BuddyListState;
 
 const isDemoRoute = () => {
   const path = window.location.pathname;
@@ -129,7 +135,7 @@ const isDemoRoute = () => {
 const App: React.FC = () => {
   const [windows, setWindows] = useState<WindowState[]>([]);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
-  const [topZIndex, setTopZIndex] = useState(1);
+  const zIndexRef = useRef(1);
   const [globalAgents, setGlobalAgents] = useState<GlobalMapAgent[]>([]);
   const [globalMessages, setGlobalMessages] = useState<GlobalMapMessage[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -147,68 +153,57 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const spawnWindow = (
-    type: 'terminal' | 'image' | 'browser' | 'global-map' | 'system-monitor' | 'dashboard',
+  // ── Stable window management (ref-based z-index, no state in closures) ──
+
+  const spawnWindow = useCallback((
+    type: 'terminal' | 'image' | 'browser' | 'global-map' | 'system-monitor' | 'dashboard' | 'buddy-list',
     title: string,
     contentOrCommand?: string,
     customPosition?: { x: number, y: number }
   ) => {
     const id = uuidv4();
+    const newZ = ++zIndexRef.current;
 
     setWindows(prev => {
-      const maxZ = prev.reduce((max, t) => Math.max(max, t.zIndex), topZIndex);
-      const newZ = maxZ + 1;
-      setTopZIndex(newZ);
-
-      let position;
-      if (customPosition) {
-        position = customPosition;
-      } else {
-        const offset = prev.length * 30;
-        position = {
-          x: 80 + (offset % 300),
-          y: 60 + (offset % 200)
-        };
-      }
+      const position = customPosition ?? {
+        x: 80 + ((prev.length * 30) % 300),
+        y: 60 + ((prev.length * 30) % 200)
+      };
 
       const base = { id, title, zIndex: newZ, position };
 
-      if (type === 'terminal') {
-        return [...prev, { ...base, type: 'terminal', initialCommand: contentOrCommand }];
-      } else if (type === 'image') {
-        return [...prev, { ...base, type: 'image', content: contentOrCommand || '' }];
-      } else if (type === 'browser') {
-        return [...prev, { ...base, type: 'browser', content: contentOrCommand || '' }];
-      } else if (type === 'system-monitor') {
-        return [...prev, { ...base, type: 'system-monitor' }];
-      } else if (type === 'dashboard') {
-        return [...prev, { ...base, type: 'dashboard' }];
+      switch (type) {
+        case 'terminal':     return [...prev, { ...base, type: 'terminal' as const, initialCommand: contentOrCommand }];
+        case 'image':        return [...prev, { ...base, type: 'image' as const, content: contentOrCommand || '' }];
+        case 'browser':      return [...prev, { ...base, type: 'browser' as const, content: contentOrCommand || '' }];
+        case 'system-monitor': return [...prev, { ...base, type: 'system-monitor' as const }];
+        case 'dashboard':    return [...prev, { ...base, type: 'dashboard' as const }];
+        case 'buddy-list':   return [...prev, { ...base, type: 'buddy-list' as const }];
+        default:             return [...prev, { ...base, type: 'global-map' as const }];
       }
-      return [...prev, { ...base, type: 'global-map' }];
     });
 
     setActiveMenu(null);
-  };
+  }, []);
 
-  const spawnTerminal = (title: string = 'Terminal', command?: string, customPosition?: { x: number, y: number }) => {
+  const spawnTerminal = useCallback((title: string = 'Terminal', command?: string, customPosition?: { x: number, y: number }) => {
     spawnWindow('terminal', title, command, customPosition);
-  };
+  }, [spawnWindow]);
 
-  const spawnGlobalMap = () => {
+  const spawnGlobalMap = useCallback(() => {
     spawnWindow('global-map', 'Agent Village');
-  };
+  }, [spawnWindow]);
 
-  const closeWindow = (id: string) => {
+  const closeWindow = useCallback((id: string) => {
     setWindows(prev => prev.filter(t => t.id !== id));
-  };
+  }, []);
 
-  const focusWindow = (id: string) => {
-    const newZ = topZIndex + 1;
-    setTopZIndex(newZ);
+  const focusWindow = useCallback((id: string) => {
+    const newZ = ++zIndexRef.current;
     setWindows(prev => prev.map(t => t.id === id ? { ...t, zIndex: newZ } : t));
-  };
+  }, []);
 
-  const handleUiCommand = (payload: UiCommandPayload) => {
+  const handleUiCommand = useCallback((payload: UiCommandPayload) => {
     if (!payload.type) return;
     if (payload.type === 'image') {
       const src = payload.src?.startsWith('http') ? payload.src : `/workspace/${payload.src}`;
@@ -216,7 +211,7 @@ const App: React.FC = () => {
     } else if (payload.type === 'browser') {
       spawnWindow('browser', payload.title || 'Browser', payload.url);
     }
-  };
+  }, [spawnWindow]);
 
   const runConvoyTest = useCallback(() => {
     const w = window.innerWidth;
@@ -227,7 +222,7 @@ const App: React.FC = () => {
     setTimeout(() => spawnTerminal('Sisyphus (Claude)', 'export OPENCODE_PROVIDER=anthropic OPENCODE_MODEL=claude-opus-4.5; echo "Starting Sisyphus..."; opencode', { x: 20, y: h - 520 }), 400);
     setTimeout(() => spawnTerminal('Oracle (OpenAI)', 'export OPENCODE_PROVIDER=openai OPENCODE_MODEL=gpt-5.2; echo "Starting Oracle..."; opencode', { x: w - 620, y: h - 520 }), 600);
     setTimeout(() => spawnTerminal('Architect (Kimi-K2.5)', 'export OPENCODE_PROVIDER=openai OPENCODE_MODEL=kimi-k2.5; echo "Starting Architect..."; opencode', { x: w / 2 - 310, y: h / 2 - 200 }), 800);
-  }, []);
+  }, [spawnTerminal]);
 
   const handleWelcomeComplete = useCallback((config?: { providers: string[]; launchAgents: string[] }) => {
     setShowWelcome(false);
@@ -272,7 +267,7 @@ const App: React.FC = () => {
         delay += 200;
       });
     }
-  }, []);
+  }, [spawnTerminal]);
   
   const handleSetupSkip = useCallback(() => {
     setShowWelcome(false);
@@ -294,9 +289,9 @@ const App: React.FC = () => {
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [spawnTerminal]);
 
-  // Demo mode
+  // Demo mode — spawnTerminal is stable so this only runs once
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('demo') === 'true' || isDemoRoute()) {
@@ -323,7 +318,7 @@ const App: React.FC = () => {
         'echo "╔══════════════════════════════════════════════════╗"; echo "║  Architect - Deep System Design Specialist     ║"; echo "╚══════════════════════════════════════════════════╝"; echo ""; echo "✓ Provider: openai"; echo "✓ Model: kimi-k2.5"; echo "✓ Status: Designing Phase 2"',
         { x: w / 2 - 310, y: h / 2 - 200 }), 800);
     }
-  }, []);
+  }, [spawnTerminal]);
 
   // Fetch agent data
   useEffect(() => {
@@ -460,6 +455,10 @@ const App: React.FC = () => {
 
       {activeMenu === 'agents' && (
         <Menu style={{ position: 'fixed', top: 28, left: 180, zIndex: 100000 }}>
+          <MenuItem onClick={() => { spawnWindow('buddy-list', 'Buddy List'); setActiveMenu(null); }}>
+            <Users size={16} /> Buddy List
+          </MenuItem>
+          <MenuDivider />
           <MenuItem onClick={() => { spawnTerminal('Sisyphus (Claude)', 'export OPENCODE_PROVIDER=anthropic OPENCODE_MODEL=claude-opus-4.5; opencode'); setActiveMenu(null); }}>
             <Cpu size={16} /> Sisyphus (Claude)
           </MenuItem>
@@ -621,6 +620,24 @@ const App: React.FC = () => {
               </ContentWindow>
             );
           }
+          if (win.type === 'buddy-list') {
+            return (
+              <ContentWindow
+                key={win.id}
+                id={win.id}
+                title={win.title}
+                type="custom"
+                initialPosition={win.position}
+                zIndex={win.zIndex}
+                onClose={() => closeWindow(win.id)}
+                onFocus={() => focusWindow(win.id)}
+                width={280}
+                height={500}
+              >
+                <AgentBuddyList onLaunchAgent={spawnTerminal} />
+              </ContentWindow>
+            );
+          }
           return null;
         })}
       </Desktop>
@@ -717,6 +734,24 @@ const App: React.FC = () => {
           <svg viewBox="0 0 32 32">
             <rect width="32" height="32" rx="7" fill="#333"/>
             <path d="M6 20l5-8 4 5 6-10 5 13" stroke="#00FF00" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </DockItem>
+        
+        <DockItem 
+          $active={windows.some(w => w.type === 'buddy-list')}
+          title="Buddy List"
+          onClick={() => spawnWindow('buddy-list', 'Buddy List')}
+        >
+          <svg viewBox="0 0 32 32">
+            <rect width="32" height="32" rx="7" fill="url(#aim)"/>
+            <text x="16" y="13" textAnchor="middle" fill="#333" fontSize="7" fontWeight="bold">AIM</text>
+            <text x="16" y="25" textAnchor="middle" fontSize="14">🏃</text>
+            <defs>
+              <linearGradient id="aim" x1="0" y1="0" x2="32" y2="32">
+                <stop stopColor="#FFE082"/>
+                <stop offset="1" stopColor="#F9A825"/>
+              </linearGradient>
+            </defs>
           </svg>
         </DockItem>
         
