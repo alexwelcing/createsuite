@@ -92,6 +92,11 @@ export {
   RouterServiceLive,
   analyzeComplexity,
 } from "./RouterService";
+export { GitService, GitServiceLive, parseGitHubUrl } from "./GitService";
+export { PRService, PRServiceLive } from "./PRService";
+export { AgentService, AgentServiceLive } from "./AgentService";
+export { PlanService, PlanServiceLive, type Plan } from "./PlanService";
+export { PipelineService, PipelineServiceLive } from "./PipelineService";
 
 // ── Composition helper ─────────────────────────────────────
 export { AppLayer } from "./layers";

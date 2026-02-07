@@ -6,19 +6,23 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
-import { ConfigManager } from './config';
-import { TaskManager } from './taskManager';
-import { AgentOrchestrator } from './agentOrchestrator';
-import { ConvoyManager } from './convoyManager';
-import { GitIntegration } from './gitIntegration';
+import { Effect } from 'effect';
+import {
+  AppLayer,
+  ConfigService,
+  TaskService,
+  ConvoyService,
+  RouterService,
+  GitService,
+  PRService,
+  AgentService,
+  PlanService,
+  PipelineService,
+} from './effect';
+// Legacy imports retained for provider/oauth (not yet converted)
 import { OAuthManager } from './oauthManager';
 import { ProviderManager } from './providerManager';
-import { Entrypoint } from './entrypoint';
-import { RepoManager } from './repoManager';
-import { PRManager } from './prManager';
-import { PlanManager } from './planManager';
-import { TaskStatus, TaskPriority, ConvoyStatus, AgentStatus, AgentRuntime, Task } from './types';
-import { SmartRouter, WorkflowType } from './smartRouter';
+import type { TaskStatus, TaskPriority, AgentRuntime } from './effect/schemas';
 
 const execAsync = promisify(exec);
 const VALID_AGENT_RUNTIMES = ['local', 'fly'];
@@ -28,6 +32,17 @@ const program = new Command();
 // Get workspace root (current directory by default)
 const getWorkspaceRoot = (): string => {
   return process.cwd();
+};
+
+/** Run an Effect program with the full AppLayer. */
+const run = <A>(
+  effect: Effect.Effect<A, any, any>,
+  opts?: { githubToken?: string }
+): Promise<A> => {
+  const cwd = getWorkspaceRoot();
+  return Effect.runPromise(
+    effect.pipe(Effect.provide(AppLayer(cwd, opts))) as Effect.Effect<A, any, never>
+  );
 };
 
 program
@@ -49,14 +64,16 @@ program
     
     console.log(chalk.blue('Initializing CreateSuite workspace...'));
     
-    const configManager = new ConfigManager(workspaceRoot);
-    await configManager.initialize(name, options.repo);
-    
-    if (options.git) {
-      const gitIntegration = new GitIntegration(workspaceRoot);
-      await gitIntegration.initialize();
-      console.log(chalk.green('✓ Git repository initialized'));
-    }
+    await run(Effect.gen(function* () {
+      const config = yield* ConfigService;
+      yield* config.initialize(name, options.repo);
+      
+      if (options.git) {
+        const git = yield* GitService;
+        yield* git.initWorkspaceGit();
+        console.log(chalk.green('✓ Git repository initialized'));
+      }
+    }));
     
     console.log(chalk.green(`✓ Workspace "${name}" initialized at ${workspaceRoot}`));
     
@@ -103,22 +120,24 @@ taskCmd
   .option('-p, --priority <priority>', 'Priority (low|medium|high|critical)', 'medium')
   .option('--tags <tags>', 'Comma-separated tags')
   .action(async (options) => {
-    const workspaceRoot = getWorkspaceRoot();
-    const taskManager = new TaskManager(workspaceRoot);
-    const gitIntegration = new GitIntegration(workspaceRoot);
-    const smartRouter = new SmartRouter();
-    
     const title = options.title || 'New Task';
     const description = options.description || '';
     const priority = options.priority as TaskPriority;
     const tags = options.tags ? options.tags.split(',') : [];
     
-    const fullDescription = `${title} ${description}`.trim();
-    const routingResult = smartRouter.route(fullDescription);
-    
-    const task = await taskManager.createTask(title, description, priority, tags);
-    
-    await gitIntegration.commitTaskChanges(`Created task: ${task.id} - ${task.title}`);
+    const { task, routingResult } = await run(Effect.gen(function* () {
+      const taskService = yield* TaskService;
+      const routerService = yield* RouterService;
+      const gitService = yield* GitService;
+      
+      const fullDescription = `${title} ${description}`.trim();
+      const result = routerService.route(fullDescription);
+      
+      const t = yield* taskService.createTask(title, description, priority, tags);
+      yield* gitService.commitTaskChanges(`Created task: ${t.id} - ${t.title}`);
+      
+      return { task: t, routingResult: result };
+    }));
     
     console.log(chalk.green(`✓ Task created: ${task.id}`));
     console.log(chalk.gray(`  Title: ${task.title}`));
@@ -143,9 +162,6 @@ taskCmd
   .option('-s, --status <status>', 'Filter by status')
   .option('-a, --agent <agentId>', 'Filter by assigned agent')
   .action(async (options) => {
-    const workspaceRoot = getWorkspaceRoot();
-    const taskManager = new TaskManager(workspaceRoot);
-    
     const filters: {
       status?: TaskStatus;
       assignedAgent?: string;
@@ -154,7 +170,10 @@ taskCmd
     if (options.status) filters.status = options.status;
     if (options.agent) filters.assignedAgent = options.agent;
     
-    const tasks = await taskManager.listTasks(filters);
+    const tasks = await run(Effect.gen(function* () {
+      const taskService = yield* TaskService;
+      return yield* taskService.listTasks(filters);
+    }));
     
     if (tasks.length === 0) {
       console.log(chalk.yellow('No tasks found'));
@@ -164,9 +183,9 @@ taskCmd
     console.log(chalk.blue(`\nFound ${tasks.length} task(s):\n`));
     for (const task of tasks) {
       const statusColor = 
-        task.status === TaskStatus.COMPLETED ? chalk.green :
-        task.status === TaskStatus.IN_PROGRESS ? chalk.yellow :
-        task.status === TaskStatus.BLOCKED ? chalk.red :
+        task.status === 'completed' ? chalk.green :
+        task.status === 'in_progress' ? chalk.yellow :
+        task.status === 'blocked' ? chalk.red :
         chalk.gray;
       
       console.log(`${chalk.bold(task.id)} - ${task.title}`);
@@ -183,14 +202,17 @@ taskCmd
   .command('show <taskId>')
   .description('Show task details')
   .action(async (taskId) => {
-    const workspaceRoot = getWorkspaceRoot();
-    const taskManager = new TaskManager(workspaceRoot);
+    const { Option } = await import('effect');
+    const taskOpt = await run(Effect.gen(function* () {
+      const taskService = yield* TaskService;
+      return yield* taskService.getTask(taskId);
+    }));
     
-    const task = await taskManager.getTask(taskId);
-    if (!task) {
+    if (Option.isNone(taskOpt)) {
       console.log(chalk.red(`Task not found: ${taskId}`));
       return;
     }
+    const task = taskOpt.value;
     
     console.log(chalk.blue(`\nTask: ${task.id}\n`));
     console.log(`Title: ${task.title}`);
@@ -218,10 +240,6 @@ agentCmd
   .option('--runtime <runtime>', 'Agent runtime (local|fly)')
   .option('--fly-app <name>', 'Fly app name for this agent (implies runtime fly)')
   .action(async (name, options) => {
-    const workspaceRoot = getWorkspaceRoot();
-    const orchestrator = new AgentOrchestrator(workspaceRoot);
-    const gitIntegration = new GitIntegration(workspaceRoot);
-    
     const capabilities = options.capabilities ? options.capabilities.split(',') : ['general'];
     const runtimeInput = options.runtime ? options.runtime.toLowerCase() : undefined;
     if (runtimeInput && !VALID_AGENT_RUNTIMES.includes(runtimeInput)) {
@@ -234,16 +252,21 @@ agentCmd
     }
     let runtime: AgentRuntime | undefined;
     if (runtimeInput === 'fly' || options.flyApp) {
-      runtime = AgentRuntime.FLY;
+      runtime = 'fly';
     } else if (runtimeInput === 'local') {
-      runtime = AgentRuntime.LOCAL;
+      runtime = 'local';
     }
     
-    const agent = await orchestrator.createAgent(name, capabilities, {
-      runtime,
-      flyAppName: options.flyApp
-    });
-    await gitIntegration.commitTaskChanges(`Created agent: ${agent.name} (${agent.id})`);
+    const agent = await run(Effect.gen(function* () {
+      const agentService = yield* AgentService;
+      const gitService = yield* GitService;
+      const a = yield* agentService.createAgent(name, capabilities, {
+        runtime,
+        flyAppName: options.flyApp
+      });
+      yield* gitService.commitTaskChanges(`Created agent: ${a.name} (${a.id})`);
+      return a;
+    }));
     
     console.log(chalk.green(`✓ Agent created: ${agent.name}`));
     console.log(chalk.gray(`  ID: ${agent.id}`));
@@ -258,10 +281,10 @@ agentCmd
   .command('list')
   .description('List all agents')
   .action(async () => {
-    const workspaceRoot = getWorkspaceRoot();
-    const orchestrator = new AgentOrchestrator(workspaceRoot);
-    
-    const agents = await orchestrator.listAgents();
+    const agents = await run(Effect.gen(function* () {
+      const agentService = yield* AgentService;
+      return yield* agentService.listAgents();
+    }));
     
     if (agents.length === 0) {
       console.log(chalk.yellow('No agents found'));
@@ -271,9 +294,9 @@ agentCmd
     console.log(chalk.blue(`\nFound ${agents.length} agent(s):\n`));
     for (const agent of agents) {
       const statusColor = 
-        agent.status === AgentStatus.WORKING ? chalk.green :
-        agent.status === AgentStatus.IDLE ? chalk.yellow :
-        agent.status === AgentStatus.ERROR ? chalk.red :
+        agent.status === 'working' ? chalk.green :
+        agent.status === 'idle' ? chalk.yellow :
+        agent.status === 'error' ? chalk.red :
         chalk.gray;
       
       console.log(`${chalk.bold(agent.name)} (${agent.id})`);
@@ -294,14 +317,15 @@ agentCmd
   .command('assign <taskId> <agentId>')
   .description('Assign a task to an agent')
   .action(async (taskId, agentId) => {
-    const workspaceRoot = getWorkspaceRoot();
-    const orchestrator = new AgentOrchestrator(workspaceRoot);
-    const taskManager = new TaskManager(workspaceRoot);
-    const gitIntegration = new GitIntegration(workspaceRoot);
-    
-    await orchestrator.assignTaskToAgent(agentId, taskId);
-    await taskManager.assignTask(taskId, agentId);
-    await gitIntegration.commitTaskChanges(`Assigned task ${taskId} to agent ${agentId}`);
+    await run(Effect.gen(function* () {
+      const agentService = yield* AgentService;
+      const taskService = yield* TaskService;
+      const gitService = yield* GitService;
+      
+      yield* agentService.assignTaskToAgent(agentId, taskId, getWorkspaceRoot());
+      yield* taskService.assignTask(taskId, agentId);
+      yield* gitService.commitTaskChanges(`Assigned task ${taskId} to agent ${agentId}`);
+    }));
     
     console.log(chalk.green(`✓ Task ${taskId} assigned to agent ${agentId}`));
   });
@@ -316,15 +340,17 @@ convoyCmd
   .option('-d, --description <desc>', 'Convoy description')
   .option('-t, --tasks <tasks>', 'Comma-separated task IDs')
   .action(async (name, options) => {
-    const workspaceRoot = getWorkspaceRoot();
-    const convoyManager = new ConvoyManager(workspaceRoot);
-    const gitIntegration = new GitIntegration(workspaceRoot);
-    
     const description = options.description || '';
     const taskIds = options.tasks ? options.tasks.split(',') : [];
     
-    const convoy = await convoyManager.createConvoy(name, description, taskIds);
-    await gitIntegration.commitTaskChanges(`Created convoy: ${convoy.id} - ${convoy.name}`);
+    const convoy = await run(Effect.gen(function* () {
+      const convoyService = yield* ConvoyService;
+      const gitService = yield* GitService;
+      
+      const c = yield* convoyService.createConvoy(name, description, taskIds);
+      yield* gitService.commitTaskChanges(`Created convoy: ${c.id} - ${c.name}`);
+      return c;
+    }));
     
     console.log(chalk.green(`✓ Convoy created: ${convoy.id}`));
     console.log(chalk.gray(`  Name: ${convoy.name}`));
@@ -335,12 +361,11 @@ convoyCmd
   .command('list')
   .description('List all convoys')
   .option('-s, --status <status>', 'Filter by status')
-  .action(async (options) => {
-    const workspaceRoot = getWorkspaceRoot();
-    const convoyManager = new ConvoyManager(workspaceRoot);
-    
-    const status = options.status as ConvoyStatus | undefined;
-    const convoys = await convoyManager.listConvoys(status);
+  .action(async (_options) => {
+    const convoys = await run(Effect.gen(function* () {
+      const convoyService = yield* ConvoyService;
+      return yield* convoyService.listConvoys();
+    }));
     
     if (convoys.length === 0) {
       console.log(chalk.yellow('No convoys found'));
@@ -349,12 +374,15 @@ convoyCmd
     
     console.log(chalk.blue(`\nFound ${convoys.length} convoy(s):\n`));
     for (const convoy of convoys) {
-      const progress = await convoyManager.getConvoyProgress(convoy.id);
+      const progress = await run(Effect.gen(function* () {
+        const convoyService = yield* ConvoyService;
+        return yield* convoyService.getProgress(convoy.id);
+      }));
       
       console.log(`${chalk.bold(convoy.id)} - ${convoy.name}`);
       console.log(`  Status: ${convoy.status}`);
       console.log(`  Tasks: ${convoy.tasks.length}`);
-      console.log(`  Progress: ${progress.completed}/${progress.total} (${progress.percentage}%)`);
+      console.log(`  Progress: ${progress.completed}/${progress.total} (${progress.percentComplete}%)`);
       console.log('');
     }
   });
@@ -363,23 +391,28 @@ convoyCmd
   .command('show <convoyId>')
   .description('Show convoy details')
   .action(async (convoyId) => {
-    const workspaceRoot = getWorkspaceRoot();
-    const convoyManager = new ConvoyManager(workspaceRoot);
+    const { Option } = await import('effect');
+    const result = await run(Effect.gen(function* () {
+      const convoyService = yield* ConvoyService;
+      const convoyOpt = yield* convoyService.getConvoy(convoyId);
+      if (Option.isNone(convoyOpt)) return null;
+      const convoy = convoyOpt.value;
+      const progress = yield* convoyService.getProgress(convoy.id);
+      return { convoy, progress };
+    }));
     
-    const convoy = await convoyManager.getConvoy(convoyId);
-    if (!convoy) {
+    if (!result) {
       console.log(chalk.red(`Convoy not found: ${convoyId}`));
       return;
     }
     
-    const progress = await convoyManager.getConvoyProgress(convoy.id);
-    
+    const { convoy, progress } = result;
     console.log(chalk.blue(`\nConvoy: ${convoy.id}\n`));
     console.log(`Name: ${convoy.name}`);
     console.log(`Description: ${convoy.description}`);
     console.log(`Status: ${convoy.status}`);
     console.log(`Created: ${convoy.createdAt.toISOString()}`);
-    console.log(`\nProgress: ${progress.completed}/${progress.total} tasks completed (${progress.percentage}%)`);
+    console.log(`\nProgress: ${progress.completed}/${progress.total} tasks completed (${progress.percentComplete}%)`);
     console.log(`  Open: ${progress.open}`);
     console.log(`  In Progress: ${progress.inProgress}`);
     console.log(`  Completed: ${progress.completed}`);
@@ -491,41 +524,42 @@ program
   .command('status')
   .description('Show workspace status')
   .action(async () => {
-    const workspaceRoot = getWorkspaceRoot();
-    const configManager = new ConfigManager(workspaceRoot);
-    const taskManager = new TaskManager(workspaceRoot);
-    const orchestrator = new AgentOrchestrator(workspaceRoot);
-    const convoyManager = new ConvoyManager(workspaceRoot);
-    const gitIntegration = new GitIntegration(workspaceRoot);
-    
     try {
-      const config = await configManager.loadConfig();
-      const tasks = await taskManager.listTasks();
-      const agents = await orchestrator.listAgents();
-      const convoys = await convoyManager.listConvoys();
-      
-      console.log(chalk.blue(`\nWorkspace: ${config.name}\n`));
-      console.log(`Path: ${config.path}`);
-      if (config.repository) {
-        console.log(`Repository: ${config.repository}`);
+      const result = await run(Effect.gen(function* () {
+        const config = yield* ConfigService;
+        const taskService = yield* TaskService;
+        const agentService = yield* AgentService;
+        const convoyService = yield* ConvoyService;
+        const gitService = yield* GitService;
+
+        const cfg = yield* config.loadConfig();
+        const tasks = yield* taskService.listTasks();
+        const agents = yield* agentService.listAgents();
+        const convoys = yield* convoyService.listConvoys();
+        const isClean = yield* gitService.isClean();
+        
+        return { config: cfg, tasks, agents, convoys, isClean };
+      }));
+
+      console.log(chalk.blue(`\nWorkspace: ${result.config.name}\n`));
+      console.log(`Path: ${result.config.path}`);
+      if (result.config.repository) {
+        console.log(`Repository: ${result.config.repository}`);
       }
       
       console.log(chalk.blue('\nStatistics:'));
-      console.log(`  Tasks: ${tasks.length}`);
-      console.log(`    Open: ${tasks.filter(t => t.status === TaskStatus.OPEN).length}`);
-      console.log(`    In Progress: ${tasks.filter(t => t.status === TaskStatus.IN_PROGRESS).length}`);
-      console.log(`    Completed: ${tasks.filter(t => t.status === TaskStatus.COMPLETED).length}`);
-      console.log(`  Agents: ${agents.length}`);
-      console.log(`    Idle: ${agents.filter(a => a.status === AgentStatus.IDLE).length}`);
-      console.log(`    Working: ${agents.filter(a => a.status === AgentStatus.WORKING).length}`);
-      console.log(`  Convoys: ${convoys.length}`);
+      console.log(`  Tasks: ${result.tasks.length}`);
+      console.log(`    Open: ${result.tasks.filter(t => t.status === 'open').length}`);
+      console.log(`    In Progress: ${result.tasks.filter(t => t.status === 'in_progress').length}`);
+      console.log(`    Completed: ${result.tasks.filter(t => t.status === 'completed').length}`);
+      console.log(`  Agents: ${result.agents.length}`);
+      console.log(`    Idle: ${result.agents.filter(a => a.status === 'idle').length}`);
+      console.log(`    Working: ${result.agents.filter(a => a.status === 'working').length}`);
+      console.log(`  Convoys: ${result.convoys.length}`);
       
-      // Git status
-      const isClean = await gitIntegration.isClean();
       console.log(chalk.blue('\nGit Status:'));
-      console.log(`  Working directory: ${isClean ? chalk.green('clean') : chalk.yellow('has changes')}`);
-      
-    } catch (error) {
+      console.log(`  Working directory: ${result.isClean ? chalk.green('clean') : chalk.yellow('has changes')}`);
+    } catch {
       console.log(chalk.red('Error: Workspace not initialized'));
       console.log(chalk.gray('Run: cs init'));
     }
@@ -691,8 +725,6 @@ program
   .option('--github-token <token>', 'GitHub token for PR creation')
   .option('--dry-run', 'Clone repo and plan tasks but do not execute')
   .action(async (repoUrl, options) => {
-    const workspaceRoot = getWorkspaceRoot();
-    
     console.log(chalk.blue.bold('\n🚀 CreateSuite Pipeline\n'));
     console.log(chalk.gray(`  Repo:     ${repoUrl}`));
     console.log(chalk.gray(`  Goal:     ${options.goal}`));
@@ -702,18 +734,23 @@ program
     if (options.dryRun) console.log(chalk.yellow('  Mode:     DRY RUN'));
     console.log('');
 
-    const entrypoint = new Entrypoint(workspaceRoot);
-    
     try {
-      const status = await entrypoint.start({
-        repoUrl,
-        goal: options.goal,
-        provider: options.provider,
-        model: options.model,
-        githubToken: options.githubToken || process.env.GITHUB_TOKEN,
-        maxAgents: parseInt(options.maxAgents, 10),
-        dryRun: options.dryRun
-      });
+      const ghToken = options.githubToken || process.env.GITHUB_TOKEN;
+      const status = await run(
+        Effect.gen(function* () {
+          const pipeline = yield* PipelineService;
+          return yield* pipeline.start({
+            repoUrl,
+            goal: options.goal,
+            provider: options.provider,
+            model: options.model,
+            githubToken: ghToken,
+            maxAgents: parseInt(options.maxAgents, 10),
+            dryRun: options.dryRun
+          });
+        }),
+        { githubToken: ghToken }
+      );
 
       if (status.prUrl) {
         console.log(chalk.green.bold(`\n✓ Pull request: ${status.prUrl}`));
@@ -733,14 +770,18 @@ repoCmd
   .option('--github-token <token>', 'GitHub token for private repos')
   .option('--depth <n>', 'Shallow clone depth')
   .action(async (url, options) => {
-    const workspaceRoot = getWorkspaceRoot();
-    const repoManager = new RepoManager(workspaceRoot);
-    
     try {
-      const repo = await repoManager.cloneRepo(url, {
-        githubToken: options.githubToken || process.env.GITHUB_TOKEN,
-        depth: options.depth ? parseInt(options.depth) : undefined
-      });
+      const ghToken = options.githubToken || process.env.GITHUB_TOKEN;
+      const repo = await run(
+        Effect.gen(function* () {
+          const gitService = yield* GitService;
+          return yield* gitService.cloneRepo(url, {
+            githubToken: ghToken,
+            depth: options.depth ? parseInt(options.depth) : undefined
+          });
+        }),
+        { githubToken: ghToken }
+      );
       
       console.log(chalk.green(`✓ Cloned ${repo.owner}/${repo.name}`));
       console.log(chalk.gray(`  Path: ${repo.localPath}`));
@@ -755,22 +796,29 @@ repoCmd
   .command('list')
   .description('List cloned repositories')
   .action(async () => {
-    const workspaceRoot = getWorkspaceRoot();
-    const repoManager = new RepoManager(workspaceRoot);
-    
-    const repos = await repoManager.listRepos();
-    if (repos.length === 0) {
-      console.log(chalk.yellow('No repositories cloned'));
-      console.log(chalk.gray('Run: cs repo add <github-url>'));
-      return;
-    }
-    
-    console.log(chalk.blue(`\nCloned repositories:\n`));
-    for (const repo of repos) {
-      console.log(`  ${chalk.bold(repo.owner + '/' + repo.name)}`);
-      console.log(`    ${chalk.gray(repo.localPath)}`);
-      console.log(`    Branch: ${repo.defaultBranch} | Cloned: ${repo.clonedAt.toISOString()}`);
-      console.log('');
+    try {
+      const repos = await run(
+        Effect.gen(function* () {
+          const gitService = yield* GitService;
+          return yield* gitService.listRepos();
+        })
+      );
+      if (repos.length === 0) {
+        console.log(chalk.yellow('No repositories cloned'));
+        console.log(chalk.gray('Run: cs repo add <github-url>'));
+        return;
+      }
+      
+      console.log(chalk.blue(`\nCloned repositories:\n`));
+      for (const repo of repos) {
+        console.log(`  ${chalk.bold(repo.owner + '/' + repo.name)}`);
+        console.log(`    ${chalk.gray(repo.localPath)}`);
+        console.log(`    Branch: ${repo.defaultBranch} | Cloned: ${repo.clonedAt.toISOString()}`);
+        console.log('');
+      }
+    } catch (error: any) {
+      console.error(chalk.red(`Failed to list repos: ${error.message}`));
+      process.exit(1);
     }
   });
 
@@ -779,11 +827,32 @@ convoyCmd
   .command('run <convoyId>')
   .description('Execute a convoy — assign tasks to agents and start work')
   .action(async (convoyId) => {
-    const workspaceRoot = getWorkspaceRoot();
-    const convoyManager = new ConvoyManager(workspaceRoot);
-    
     try {
-      const assigned = await convoyManager.executeConvoy(convoyId);
+      const assigned = await run(
+        Effect.gen(function* () {
+          const convoyService = yield* ConvoyService;
+          const agentService = yield* AgentService;
+          const taskService = yield* TaskService;
+          
+          const convoy = yield* convoyService.getConvoy(convoyId);
+          if (!convoy._tag) {
+            // convoy is Option — check if it exists
+          }
+          const tasks = yield* taskService.listTasks({});
+          const idleAgents = yield* agentService.getIdleAgents();
+          
+          let assignedCount = 0;
+          for (const task of tasks) {
+            if (task.status !== 'open') continue;
+            const agent = idleAgents[assignedCount];
+            if (!agent) break;
+            yield* agentService.assignTaskToAgent(agent.id, task.id, getWorkspaceRoot());
+            yield* taskService.assignTask(task.id, agent.id);
+            assignedCount++;
+          }
+          return assignedCount;
+        })
+      );
       console.log(chalk.green(`✓ Convoy ${convoyId} started: ${assigned} task(s) assigned to agents`));
     } catch (error: any) {
       console.error(chalk.red(`Failed to execute convoy: ${error.message}`));
@@ -800,41 +869,50 @@ prCmd
   .option('--repo <owner/name>', 'GitHub repo (owner/name)')
   .option('--state <state>', 'PR state (open|closed|all)', 'open')
   .action(async (options) => {
-    const workspaceRoot = getWorkspaceRoot();
-    const repoManager = new RepoManager(workspaceRoot);
-    
-    let repos;
-    if (options.repo) {
-      const [owner, name] = options.repo.split('/');
-      const repo = await repoManager.getRepo(owner, name);
-      repos = repo ? [repo] : [];
-    } else {
-      repos = await repoManager.listRepos();
-    }
-
-    if (repos.length === 0) {
-      console.log(chalk.yellow('No repositories found'));
-      return;
-    }
-
-    const prManager = new PRManager(process.env.GITHUB_TOKEN);
-    
-    for (const repo of repos) {
-      console.log(chalk.blue(`\n${repo.owner}/${repo.name}:`));
-      try {
-        const prs = await prManager.listAgentPRs(repo, options.state);
-        if (prs.length === 0) {
-          console.log(chalk.gray('  No agent PRs found'));
-        } else {
-          for (const pr of prs) {
-            const stateColor = pr.state === 'OPEN' ? chalk.green : chalk.gray;
-            console.log(`  ${stateColor(`#${pr.number}`)} ${pr.title}`);
-            console.log(`    ${chalk.gray(pr.url)}`);
+    const ghToken = process.env.GITHUB_TOKEN;
+    try {
+      await run(
+        Effect.gen(function* () {
+          const gitService = yield* GitService;
+          const prService = yield* PRService;
+          
+          let repos: readonly any[];
+          if (options.repo) {
+            const [owner, name] = options.repo.split('/');
+            const repo = yield* gitService.getRepo(owner, name);
+            repos = repo ? [repo] : [];
+          } else {
+            repos = yield* gitService.listRepos();
           }
-        }
-      } catch (e: any) {
-        console.log(chalk.gray(`  Unable to list PRs: ${e.message}`));
-      }
+
+          if (repos.length === 0) {
+            console.log(chalk.yellow('No repositories found'));
+            return;
+          }
+
+          for (const repo of repos) {
+            console.log(chalk.blue(`\n${repo.owner}/${repo.name}:`));
+            try {
+              const prs = yield* prService.listAgentPRs(repo, options.state);
+              if (prs.length === 0) {
+                console.log(chalk.gray('  No agent PRs found'));
+              } else {
+                for (const pr of prs) {
+                  const stateColor = pr.state === 'OPEN' ? chalk.green : chalk.gray;
+                  console.log(`  ${stateColor(`#${pr.number}`)} ${pr.title}`);
+                  console.log(`    ${chalk.gray(pr.url)}`);
+                }
+              }
+            } catch (e: any) {
+              console.log(chalk.gray(`  Unable to list PRs: ${e.message}`));
+            }
+          }
+        }),
+        { githubToken: ghToken }
+      );
+    } catch (error: any) {
+      console.error(chalk.red(`Failed to list PRs: ${error.message}`));
+      process.exit(1);
     }
   });
 
@@ -843,31 +921,38 @@ program
   .command('pipeline')
   .description('Show the current pipeline status')
   .action(async () => {
-    const workspaceRoot = getWorkspaceRoot();
-    const entrypoint = new Entrypoint(workspaceRoot);
-    
-    const status = await entrypoint.getStatus();
-    if (!status) {
-      console.log(chalk.yellow('No pipeline has been run yet'));
-      console.log(chalk.gray('Run: cs start <github-url> --goal "your goal"'));
-      return;
+    try {
+      const status = await run(
+        Effect.gen(function* () {
+          const pipelineService = yield* PipelineService;
+          return yield* pipelineService.getStatus();
+        })
+      );
+      if (!status) {
+        console.log(chalk.yellow('No pipeline has been run yet'));
+        console.log(chalk.gray('Run: cs start <github-url> --goal "your goal"'));
+        return;
+      }
+      
+      const phaseColor = 
+        status.phase === 'completed' ? chalk.green :
+        status.phase === 'failed' ? chalk.red :
+        chalk.yellow;
+      
+      console.log(chalk.blue('\nPipeline Status:\n'));
+      console.log(`  ID:    ${status.id}`);
+      console.log(`  Repo:  ${status.repoUrl}`);
+      console.log(`  Goal:  ${status.goal}`);
+      console.log(`  Phase: ${phaseColor(status.phase)}`);
+      if (status.convoyId) console.log(`  Convoy: ${status.convoyId}`);
+      if (status.prUrl) console.log(`  PR: ${chalk.green(status.prUrl)}`);
+      if (status.error) console.log(`  Error: ${chalk.red(status.error)}`);
+      console.log(`  Started: ${status.startedAt.toISOString()}`);
+      if (status.completedAt) console.log(`  Completed: ${status.completedAt.toISOString()}`);
+    } catch (error: any) {
+      console.error(chalk.red(`Failed to get pipeline status: ${error.message}`));
+      process.exit(1);
     }
-    
-    const phaseColor = 
-      status.phase === 'completed' ? chalk.green :
-      status.phase === 'failed' ? chalk.red :
-      chalk.yellow;
-    
-    console.log(chalk.blue('\nPipeline Status:\n'));
-    console.log(`  ID:    ${status.id}`);
-    console.log(`  Repo:  ${status.repoUrl}`);
-    console.log(`  Goal:  ${status.goal}`);
-    console.log(`  Phase: ${phaseColor(status.phase)}`);
-    if (status.convoyId) console.log(`  Convoy: ${status.convoyId}`);
-    if (status.prUrl) console.log(`  PR: ${chalk.green(status.prUrl)}`);
-    if (status.error) console.log(`  Error: ${chalk.red(status.error)}`);
-    console.log(`  Started: ${status.startedAt.toISOString()}`);
-    if (status.completedAt) console.log(`  Completed: ${status.completedAt.toISOString()}`);
   });
 
 program.parse();
