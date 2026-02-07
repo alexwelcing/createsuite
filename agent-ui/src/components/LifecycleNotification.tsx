@@ -471,7 +471,7 @@ const LifecycleNotification: React.FC<LifecycleNotificationProps> = ({
   }, []);
 
   useEffect(() => {
-    const socketInstance = io();
+    const socketInstance = io({ transports: ['websocket'], upgrade: false });
     setSocket(socketInstance);
 
     socketInstance.on('lifecycle:status', (data: LifecycleStatus) => {

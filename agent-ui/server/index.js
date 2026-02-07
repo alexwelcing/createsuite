@@ -79,7 +79,11 @@ const io = new Server(server, {
   cors: {
     origin: corsOrigin,
     methods: ['GET', 'POST']
-  }
+  },
+  transports: ['websocket', 'polling'],
+  allowUpgrades: true,
+  pingTimeout: 30000,
+  pingInterval: 25000
 });
 
 // Initialize lifecycle manager for intelligent container management

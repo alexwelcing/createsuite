@@ -205,7 +205,7 @@ const TerminalWindow: React.FC<TerminalWindowProps> = ({
   const [isActive, setIsActive] = useState(true);
 
   useEffect(() => {
-    socketRef.current = io();
+    socketRef.current = io({ transports: ['websocket'], upgrade: false });
 
     const term = new Terminal({
       cursorBlink: true,
@@ -271,11 +271,27 @@ const TerminalWindow: React.FC<TerminalWindowProps> = ({
       }
     });
 
-    socketRef.current.on('connect_error', () => {
-      setConnectionStatus('error');
-      setIsLoading(false);
-      term.writeln('\x1b[38;2;255;95;87mConnection failed\x1b[0m');
-      term.writeln('The agent backend is not available.');
+    let connectAttempts = 0;
+    socketRef.current.on('connect_error', (err) => {
+      connectAttempts++;
+      console.warn(`Socket connect_error (attempt ${connectAttempts}):`, err.message);
+      // Only show error after several retries — Socket.IO auto-reconnects
+      if (connectAttempts >= 3) {
+        setConnectionStatus('error');
+        setIsLoading(false);
+        term.writeln('\x1b[38;2;255;95;87mConnection failed\x1b[0m');
+        term.writeln('The agent backend is not available.');
+        term.writeln('\x1b[38;2;142;142;147mRetrying...\x1b[0m');
+      }
+    });
+
+    socketRef.current.on('disconnect', (reason) => {
+      console.warn('Socket disconnected:', reason);
+      if (reason === 'io server disconnect') {
+        // Server forcibly disconnected — reconnect manually
+        socketRef.current?.connect();
+      }
+      // For other reasons, socket.io auto-reconnects
     });
 
     socketRef.current.on('output', (data: string) => {
