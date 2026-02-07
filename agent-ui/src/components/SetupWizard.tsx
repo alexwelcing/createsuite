@@ -643,8 +643,8 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
       const configRes = await fetch('/api/agents/configs');
       const configData = await configRes.json();
       flyEnabled = configData.flyEnabled;
-    } catch (e) {
-      console.log('Fly.io spawning not available');
+    } catch {
+      // Fly.io spawning not available in this environment
     }
     
     if (flyEnabled && agentsToLaunch.length > 0) {
@@ -657,8 +657,8 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete, onSkip }) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ agentType: agentId })
           });
-        } catch (e) {
-          console.error(`Failed to spawn agent ${agentId}:`, e);
+        } catch {
+          console.error(`Failed to spawn agent ${agentId}`);
         }
       }
     }

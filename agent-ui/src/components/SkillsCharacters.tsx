@@ -105,7 +105,7 @@ const SkillsCharacters: React.FC<SkillsCharactersProps> = ({ onCharacterSelect }
         } else {
           setError(data.error);
         }
-      } catch (err) {
+      } catch {
         setError('Failed to load skills');
       } finally {
         setLoading(false);

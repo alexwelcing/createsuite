@@ -451,18 +451,24 @@ interface LifecycleNotificationProps {
 
 const LifecycleNotification: React.FC<LifecycleNotificationProps> = ({
   onKeepWorking,
-  onViewResults: _onViewResults
 }) => {
-  const [_socket, setSocket] = useState<Socket | null>(null);
+  const [, setSocket] = useState<Socket | null>(null);
   const [status, setStatus] = useState<LifecycleStatus | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [now, setNow] = useState(Date.now());
   const [notification, setNotification] = useState<{
     type: 'grace-period' | 'shutdown' | 'rebuilding' | 'held' | 'grace-cancelled' | null;
     message: string;
     data?: unknown;
   }>({ type: null, message: '' });
+
+  // Keep `now` updated for session duration display
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const socketInstance = io();
@@ -765,7 +771,7 @@ const LifecycleNotification: React.FC<LifecycleNotificationProps> = ({
                       <span>🖥️</span>
                       <span>{session.agentId || 'Terminal'}</span>
                       <span className="time">
-                        {Math.floor((Date.now() - session.createdAt) / 60000)}m
+                        {Math.floor((now - session.createdAt) / 60000)}m
                       </span>
                     </SessionItem>
                   ))}

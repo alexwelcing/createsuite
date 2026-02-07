@@ -153,17 +153,17 @@ export const AgentMetricsDashboard: React.FC = () => {
       const tasksRes = await fetch('/api/tasks');
       const tasksData = await tasksRes.json();
       if (tasksData.success && Array.isArray(tasksData.data)) {
-        const tasks = tasksData.data.map((t: any) => ({
-          id: t.id,
-          title: t.title,
-          priority: t.priority || 'medium',
-          status: t.status,
-          timestamp: new Date(t.createdAt)
+        const tasks: QueueTask[] = tasksData.data.map((t: Record<string, unknown>) => ({
+          id: t.id as string,
+          title: t.title as string,
+          priority: (t.priority as string) || 'medium',
+          status: t.status as string,
+          timestamp: new Date(t.createdAt as string)
         }));
         
         // Sort by priority
         const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-        tasks.sort((a: any, b: any) => {
+        tasks.sort((a, b) => {
           const pA = priorityOrder[a.priority as keyof typeof priorityOrder] ?? 2;
           const pB = priorityOrder[b.priority as keyof typeof priorityOrder] ?? 2;
           return pA - pB;
@@ -172,7 +172,7 @@ export const AgentMetricsDashboard: React.FC = () => {
         setQueue(tasks);
         setStats(prev => ({ 
           ...prev, 
-          completedTasks: tasks.filter((t: any) => t.status === 'completed').length 
+          completedTasks: tasks.filter(t => t.status === 'completed').length 
         }));
       }
 
@@ -218,9 +218,14 @@ export const AgentMetricsDashboard: React.FC = () => {
   };
 
   useEffect(() => {
+    // Initial fetch + polling interval
+    const controller = new AbortController();
     fetchData();
     const interval = setInterval(fetchData, 3000);
-    return () => clearInterval(interval);
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+    };
   }, []);
 
   return (

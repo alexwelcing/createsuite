@@ -182,17 +182,6 @@ const buildFileTree = (rootPath: string = '/'): FileNode[] => {
   ];
 };
 
-const findNode = (nodes: FileNode[], path: string): FileNode | null => {
-  for (const node of nodes) {
-    if (node.path === path) return node;
-    if (node.children) {
-      const found = findNode(node.children, path);
-      if (found) return found;
-    }
-  }
-  return null;
-};
-
 const getFileIcon = (filename: string): React.ReactNode => {
   const ext = filename.split('.').pop()?.toLowerCase() || '';
   return FILE_ICONS[ext] || FILE_ICONS.default;

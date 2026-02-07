@@ -228,7 +228,7 @@ app.post('/api/providers/save', (req, res) => {
     const existingByProvider = new Map(existing.map((p) => [p.provider, p]));
     const claudeModel = claudeTier === 'Max (20x mode)'
       ? 'anthropic/claude-sonnet-4-20250514'
-      : 'anthropic/claude-sonnet-4-20250514';
+      : 'anthropic/claude-sonnet-4-20250514';  // TODO: differentiate Max tier
 
     const modelMap = {
       'zai-coding-plan': 'anthropic/claude-sonnet-4-20250514',

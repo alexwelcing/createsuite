@@ -18,11 +18,6 @@ const slideUp = keyframes`
   to { opacity: 1; transform: translateY(0); }
 `;
 
-const bounce = keyframes`
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
-`;
-
 // ==================== WINDOW ====================
 
 interface WindowProps {
@@ -531,4 +526,4 @@ export const Link = styled.a`
   }
 `;
 
-export { fadeIn, slideUp, bounce };
+// Animations are defined locally and used only within this file's styled components.
