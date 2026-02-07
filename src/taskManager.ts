@@ -25,7 +25,13 @@ export class TaskManager {
   }
 
   /**
-   * Create a new task
+   * Create a new task.
+   *
+   * @param title - The title of the task
+   * @param description - A detailed description of the task
+   * @param priority - The priority level (default: MEDIUM)
+   * @param tags - Array of tags for categorization
+   * @returns The created Task object
    */
   async createTask(
     title: string,
