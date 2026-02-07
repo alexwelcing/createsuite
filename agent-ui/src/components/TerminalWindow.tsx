@@ -200,12 +200,24 @@ const TerminalWindow: React.FC<TerminalWindowProps> = ({
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const nodeRef = useRef<HTMLDivElement>(null);
+  const onUiCommandRef = useRef(onUiCommand);
+  const initialCommandRef = useRef(initialCommand);
   const [isLoading, setIsLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
   const [isActive, setIsActive] = useState(true);
 
+  // Keep refs up to date without triggering re-mount
+  useEffect(() => { onUiCommandRef.current = onUiCommand; }, [onUiCommand]);
+
+  // Single mount/unmount effect — no dependencies that change
   useEffect(() => {
-    socketRef.current = io({ transports: ['websocket'], upgrade: false });
+    const socket = io({
+      transports: ['websocket'],
+      upgrade: false,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
+    socketRef.current = socket;
 
     const term = new Terminal({
       cursorBlink: true,
@@ -242,7 +254,7 @@ const TerminalWindow: React.FC<TerminalWindowProps> = ({
     
     if (terminalRef.current) {
       term.open(terminalRef.current);
-      setTimeout(() => fitAddon.fit(), 0);
+      setTimeout(() => fitAddon.fit(), 50);
     }
 
     xtermRef.current = term;
@@ -250,70 +262,74 @@ const TerminalWindow: React.FC<TerminalWindowProps> = ({
 
     const handleResize = () => {
       fitAddon.fit();
-      if (socketRef.current) {
-        socketRef.current.emit('resize', { cols: term.cols, rows: term.rows });
-      }
+      socketRef.current?.emit('resize', { cols: term.cols, rows: term.rows });
     };
     
     window.addEventListener('resize', handleResize);
 
-    socketRef.current.on('connect', () => {
+    let hasConnected = false;
+    socket.on('connect', () => {
       setConnectionStatus('connected');
-      term.writeln('\x1b[38;2;0;122;255mConnected to Agent Backend\x1b[0m');
-      term.writeln('');
-      socketRef.current?.emit('spawn', { cols: term.cols, rows: term.rows });
       setIsLoading(false);
+      if (!hasConnected) {
+        hasConnected = true;
+        term.writeln('\x1b[38;2;0;122;255mConnected to Agent Backend\x1b[0m');
+        term.writeln('');
+      } else {
+        term.writeln('\x1b[38;2;0;122;255mReconnected\x1b[0m');
+      }
+      socket.emit('spawn', { cols: term.cols, rows: term.rows });
       
-      if (initialCommand) {
-        setTimeout(() => {
-          socketRef.current?.emit('input', initialCommand + '\r');
-        }, 500);
+      const cmd = initialCommandRef.current;
+      if (cmd && !hasConnected) {
+        // hasConnected was just set to true above, so first connect only
+      }
+      if (cmd) {
+        setTimeout(() => socket.emit('input', cmd + '\r'), 500);
+        initialCommandRef.current = undefined; // Only run once
       }
     });
 
     let connectAttempts = 0;
-    socketRef.current.on('connect_error', (err) => {
+    socket.on('connect_error', (err) => {
       connectAttempts++;
       console.warn(`Socket connect_error (attempt ${connectAttempts}):`, err.message);
-      // Only show error after several retries — Socket.IO auto-reconnects
       if (connectAttempts >= 3) {
         setConnectionStatus('error');
         setIsLoading(false);
         term.writeln('\x1b[38;2;255;95;87mConnection failed\x1b[0m');
         term.writeln('The agent backend is not available.');
-        term.writeln('\x1b[38;2;142;142;147mRetrying...\x1b[0m');
       }
     });
 
-    socketRef.current.on('disconnect', (reason) => {
+    socket.on('disconnect', (reason) => {
       console.warn('Socket disconnected:', reason);
+      setConnectionStatus('connecting');
       if (reason === 'io server disconnect') {
-        // Server forcibly disconnected — reconnect manually
-        socketRef.current?.connect();
+        socket.connect();
       }
-      // For other reasons, socket.io auto-reconnects
     });
 
-    socketRef.current.on('output', (data: string) => {
+    socket.on('output', (data: string) => {
       term.write(data);
     });
 
-    socketRef.current.on('ui-command', (payload: UiCommandPayload) => {
-      if (onUiCommand) {
-        onUiCommand(payload);
-      }
+    socket.on('ui-command', (payload: UiCommandPayload) => {
+      onUiCommandRef.current?.(payload);
     });
 
     term.onData((data) => {
-      socketRef.current?.emit('input', data);
+      socket.emit('input', data);
     });
 
     return () => {
       window.removeEventListener('resize', handleResize);
       term.dispose();
-      socketRef.current?.disconnect();
+      socket.disconnect();
+      socketRef.current = null;
     };
-  }, [initialCommand, onUiCommand]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Mount once only — refs handle changing callbacks
 
   const handleFocus = () => {
     setIsActive(true);
