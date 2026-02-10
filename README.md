@@ -125,6 +125,10 @@ cs init
 cs agent create alice --capabilities "frontend,testing"
 cs agent create bob --capabilities "backend,api"
 
+# Create a Fly-backed agent with its own app
+cs agent create atlas --runtime fly
+cs agent create helia --runtime fly --fly-app my-fly-agent-app
+
 # List all agents
 cs agent list
 ```
