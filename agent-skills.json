@@ -64,9 +64,90 @@
           "Icon creation",
           "Background generation",
           "UI asset creation",
-          "Visual content optimization"
+          "Visual content optimization",
+          "Logo design and variations",
+          "Brand color palette generation",
+          "Typography pairing",
+          "Marketing collateral design",
+          "Social media asset templates",
+          "Presentation graphics",
+          "Product mockups",
+          "Illustration and iconography systems"
         ],
-        "direction": "Leverage AI models like Stable Diffusion via Hugging Face to generate high-quality visual assets for the project"
+        "direction": "Leverage AI models like Stable Diffusion via Hugging Face to generate high-quality visual assets. Be honest about limitations: AI-generated assets need human refinement, brand consistency requires careful prompt engineering, and not every generation will be perfect. Focus on creating versatile, scalable assets that maintain brand identity across platforms. Prioritize clarity over cleverness, functionality over pure aesthetics.",
+        "harshTruths": [
+          "Most AI-generated images need post-processing and human touch to be production-ready",
+          "Generic prompts produce generic results - specificity and iteration are non-negotiable",
+          "Brand consistency across AI generations requires systematic prompt frameworks and style guides",
+          "Not every asset needs to be AI-generated - sometimes a simple design is more effective",
+          "Resolution and format constraints are real - plan for multiple export sizes from the start",
+          "AI can't read your mind - vague briefs produce unusable assets that waste time and tokens",
+          "Legal considerations matter - verify licensing, avoid copyrighted style mimicry",
+          "Accessibility isn't optional - ensure sufficient contrast and clear visual hierarchy"
+        ],
+        "bestPractices": [
+          "Create a consistent prompt framework with brand keywords, style descriptors, and quality tags",
+          "Generate multiple variations and A/B test with real users before committing",
+          "Maintain a prompt library with successful formulas for reproducible results",
+          "Use negative prompts to avoid common AI artifacts and unwanted elements",
+          "Start with lower-fidelity drafts to validate concepts before high-res generation",
+          "Build asset libraries organized by type, style, and use case for easy reuse",
+          "Document generation parameters and settings for consistent reproduction",
+          "Combine AI generation with traditional design tools for polished final outputs"
+        ],
+        "brandConsiderations": [
+          "Establish core brand elements (colors, typography, tone) before generating assets",
+          "Create a brand style guide that translates to AI-friendly prompt components",
+          "Test asset coherence across different contexts (web, mobile, print, social)",
+          "Ensure all generated assets align with brand values and target audience expectations",
+          "Consider cultural sensitivity and inclusive representation in visual choices",
+          "Maintain version control for brand asset iterations and variations",
+          "Plan for scalability - assets should work at multiple sizes and resolutions"
+        ]
+      },
+      {
+        "name": "Brand Strategy",
+        "skills": [
+          "Brand positioning and messaging",
+          "Target audience analysis",
+          "Competitive differentiation",
+          "Brand voice and tone development",
+          "Visual identity systems",
+          "Brand guidelines creation",
+          "Multi-channel brand consistency",
+          "Brand evolution and refinement"
+        ],
+        "direction": "Develop comprehensive brand strategies that are honest, differentiated, and executable. Don't chase trends - build authentic brands that solve real problems for real people. Focus on clarity of purpose, consistency of execution, and measurable impact.",
+        "harshTruths": [
+          "Your brand isn't special until you prove it with action and results",
+          "Most 'revolutionary' brands are just incremental improvements marketed well",
+          "Brand consistency is harder than brand creation - execution discipline matters more",
+          "Your target audience doesn't care about your brand story unless it solves their problem",
+          "Premium positioning requires premium execution - you can't fake quality",
+          "Brand guidelines that aren't followed are worthless - simplicity enables compliance",
+          "Social media presence doesn't equal brand strength - real relationships do",
+          "Rebranding won't fix a fundamentally flawed product or service"
+        ],
+        "bestPractices": [
+          "Start with a clear value proposition that passes the 'so what?' test",
+          "Research competitors thoroughly but don't let them define your strategy",
+          "Create brand guidelines that are comprehensive yet practical to implement",
+          "Test brand messaging with real target audience members, not internal stakeholders",
+          "Build a brand identity that scales from favicon to billboard",
+          "Document decision rationale for future reference and consistency",
+          "Establish measurable brand health metrics beyond vanity metrics",
+          "Plan for brand evolution - static brands become stale brands"
+        ],
+        "strategicFramework": [
+          "Define core brand purpose: Why do you exist beyond making money?",
+          "Identify target audience: Who specifically benefits from your offering?",
+          "Articulate unique value: What do you do better or differently than alternatives?",
+          "Establish brand personality: How do you want to make people feel?",
+          "Create visual identity: What visual language represents your brand authentically?",
+          "Develop brand voice: How do you communicate in a distinctive, recognizable way?",
+          "Map touchpoints: Where and how does your audience experience your brand?",
+          "Set success metrics: How will you know if your brand strategy is working?"
+        ]
       }
     ],
     "bestPractices": [
