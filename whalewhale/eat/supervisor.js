@@ -185,7 +185,7 @@ function nextTeam(transcript, transcriptRel, owner, update, official) {
     seed: transcript.team.training.seed,
     startFrom,
     read: [startFrom, artifactPath(transcriptRel)],
-    writeWeights: "out/team-" + iteration + "/weights.json",
+    writeWeights: "runs/team-" + iteration + "/weights.json",
   });
 }
 
@@ -231,7 +231,7 @@ function supervise(transcriptPath) {
 }
 
 function superviseTranscript(transcript, transcriptRel) {
-  return decide(transcript, transcriptRel || "out/team-0/transcript.json");
+  return decide(transcript, transcriptRel || "runs/team-0/transcript.json");
 }
 
 module.exports = { supervise, superviseTranscript };

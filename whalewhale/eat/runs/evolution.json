@@ -1,0 +1,56 @@
+{
+  "from": 0,
+  "to": 1,
+  "why": "Team 0 stalled. Weights did not move (0 of 225 parameters changed, L1 0.0000). Observer owns the weight update and its mandate forbids parameter writes. The update phase applied 0 of 25 sgd steps; the pairwise gradient norm was 0.0926. The official eval stayed failed: accept 6/16, separated 5/16, first failure: Nw East chose Se, rejected by accept.",
+  "weightUpdate": "weight_trainer",
+  "team": {
+    "version": 1,
+    "iteration": 1,
+    "roles": [
+      {
+        "name": "weight_trainer",
+        "prompt": "You own the energy weight update. Load the stalled weights and apply SGD to the pairwise energy loss until the official window-drag eval passes. Write a new weight artifact. Do not change the accept rule.",
+        "updatesWeights": true,
+        "learningRate": 1
+      },
+      {
+        "name": "eval_runner",
+        "prompt": "Run the official window-drag energy eval. Report how many chosen next states the fixture accepts. Do not write parameters.",
+        "updatesWeights": false,
+        "learningRate": 0
+      }
+    ],
+    "phases": [
+      {
+        "name": "init",
+        "role": "weight_trainer"
+      },
+      {
+        "name": "update-weights",
+        "role": "weight_trainer"
+      },
+      {
+        "name": "official-eval",
+        "role": "eval_runner"
+      }
+    ],
+    "ownership": {
+      "weightUpdate": "weight_trainer",
+      "officialEval": "eval_runner"
+    },
+    "training": {
+      "seed": 1,
+      "startFrom": "runs/team-0/weights.json",
+      "method": "sgd",
+      "maxEpochs": 200,
+      "stop": "eval-pass"
+    },
+    "knowledge": {
+      "read": [
+        "runs/team-0/weights.json",
+        "runs/team-0/transcript.json"
+      ],
+      "writeWeights": "runs/team-1/weights.json"
+    }
+  }
+}

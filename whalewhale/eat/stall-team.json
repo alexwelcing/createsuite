@@ -39,6 +39,6 @@
   },
   "knowledge": {
     "read": [],
-    "writeWeights": "out/team-0/weights.json"
+    "writeWeights": "runs/team-0/weights.json"
   }
 }

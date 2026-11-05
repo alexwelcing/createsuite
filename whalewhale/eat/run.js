@@ -11,7 +11,7 @@ const { evaluate } = require("../energy/eval");
 const { loadWeights } = require("../energy/model");
 
 const ROOT = __dirname;
-const OUT = path.join(ROOT, "out");
+const OUT = path.join(ROOT, "runs");
 const ENERGY_WEIGHTS = path.join(ROOT, "..", "energy", "weights.json");
 
 function writeJson(file, value) {
@@ -81,7 +81,7 @@ function reportTeam(transcript) {
 function baseTranscript(patch) {
   const transcript = {
     iteration: 3,
-    artifact: "out/team-3/weights.json",
+    artifact: "runs/team-3/weights.json",
     team: {
       version: 1,
       iteration: 3,
@@ -107,14 +107,14 @@ function baseTranscript(patch) {
       ownership: { weightUpdate: "weight_trainer", officialEval: "eval_runner" },
       training: {
         seed: 1,
-        startFrom: "out/team-2/weights.json",
+        startFrom: "runs/team-2/weights.json",
         method: "sgd",
         maxEpochs: 10,
         stop: "eval-pass",
       },
       knowledge: {
-        read: ["out/team-2/weights.json"],
-        writeWeights: "out/team-3/weights.json",
+        read: ["runs/team-2/weights.json"],
+        writeWeights: "runs/team-3/weights.json",
       },
     },
     phases: [
@@ -150,7 +150,7 @@ function baseTranscript(patch) {
 function checkSupervisorBranches() {
   const stalled = superviseTranscript(
     baseTranscript((transcript) => transcript),
-    "out/team-3/transcript.json"
+    "runs/team-3/transcript.json"
   );
   assert.equal(stalled.stalled, true);
   assert.ok(stalled.why.includes("stayed 4/16"));
@@ -159,7 +159,7 @@ function checkSupervisorBranches() {
   const trainer = stalled.team.roles.find((role) => role.name === "weight_trainer");
   assert.equal(trainer.updatesWeights, true);
   assert.ok(trainer.learningRate > 0.25);
-  assert.equal(stalled.team.training.startFrom, "out/team-3/weights.json");
+  assert.equal(stalled.team.training.startFrom, "runs/team-3/weights.json");
 
   const passing = superviseTranscript(
     baseTranscript((transcript) => {
@@ -172,7 +172,7 @@ function checkSupervisorBranches() {
       score.failures = [];
       return transcript;
     }),
-    "out/team-3/transcript.json"
+    "runs/team-3/transcript.json"
   );
   assert.equal(passing.stalled, false);
   assert.equal(passing.team, null);
