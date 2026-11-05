@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "iteration": 0,
+  "roles": [
+    {
+      "name": "weight_holder",
+      "prompt": "Draw the initial energy weights from the seed and hold them. You do not own the weight update.",
+      "updatesWeights": false,
+      "learningRate": 0
+    },
+    {
+      "name": "observer",
+      "prompt": "You own the weight update. Record the pairwise gradient and do not write W1, b1, w2, or b2.",
+      "updatesWeights": false,
+      "learningRate": 0
+    },
+    {
+      "name": "eval_runner",
+      "prompt": "Run the official window-drag energy eval. Report how many chosen next states the fixture accepts. Do not write parameters.",
+      "updatesWeights": false,
+      "learningRate": 0
+    }
+  ],
+  "phases": [
+    { "name": "init", "role": "weight_holder" },
+    { "name": "update-weights", "role": "observer" },
+    { "name": "official-eval", "role": "eval_runner" }
+  ],
+  "ownership": {
+    "weightUpdate": "observer",
+    "officialEval": "eval_runner"
+  },
+  "training": {
+    "seed": 1,
+    "startFrom": null,
+    "method": "sgd",
+    "maxEpochs": 25,
+    "stop": "eval-pass"
+  },
+  "knowledge": {
+    "read": [],
+    "writeWeights": "out/team-0/weights.json"
+  }
+}
