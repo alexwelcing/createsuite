@@ -1,0 +1,8 @@
+{
+  "tab_label": "window-drag",
+  "root": {
+    "type": "pane",
+    "label": "window-drag",
+    "command": ["dsh", "--profile", "window-drag"]
+  }
+}
