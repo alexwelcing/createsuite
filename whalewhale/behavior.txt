@@ -1,0 +1,1 @@
+A window sits on one cell of a two-by-two grid. The cells are Nw at (0, 1), Ne at (1, 1), Sw at (0, 0), and Se at (1, 0). A drag is one step East, West, North, or South, with East increasing x and North increasing y. The reachable next positions are the window's current cell together with the neighbor one step away when that neighbor is still on the grid, and no other cell.
