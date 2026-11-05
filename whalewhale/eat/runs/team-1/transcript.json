@@ -1,0 +1,242 @@
+{
+  "iteration": 1,
+  "artifact": "runs/team-1/weights.json",
+  "team": {
+    "version": 1,
+    "iteration": 1,
+    "roles": [
+      {
+        "name": "weight_trainer",
+        "prompt": "You own the energy weight update. Load the stalled weights and apply SGD to the pairwise energy loss until the official window-drag eval passes. Write a new weight artifact. Do not change the accept rule.",
+        "updatesWeights": true,
+        "learningRate": 1
+      },
+      {
+        "name": "eval_runner",
+        "prompt": "Run the official window-drag energy eval. Report how many chosen next states the fixture accepts. Do not write parameters.",
+        "updatesWeights": false,
+        "learningRate": 0
+      }
+    ],
+    "phases": [
+      {
+        "name": "init",
+        "role": "weight_trainer"
+      },
+      {
+        "name": "update-weights",
+        "role": "weight_trainer"
+      },
+      {
+        "name": "official-eval",
+        "role": "eval_runner"
+      }
+    ],
+    "ownership": {
+      "weightUpdate": "weight_trainer",
+      "officialEval": "eval_runner"
+    },
+    "training": {
+      "seed": 1,
+      "startFrom": "runs/team-0/weights.json",
+      "method": "sgd",
+      "maxEpochs": 200,
+      "stop": "eval-pass"
+    },
+    "knowledge": {
+      "read": [
+        "runs/team-0/weights.json",
+        "runs/team-0/transcript.json"
+      ],
+      "writeWeights": "runs/team-1/weights.json"
+    }
+  },
+  "phases": [
+    {
+      "name": "init",
+      "role": "weight_trainer",
+      "source": "artifact",
+      "seed": 1,
+      "startFrom": "runs/team-0/weights.json",
+      "accepted": 6,
+      "separated": 5,
+      "drags": 16,
+      "minGap": -0.6304697721254486,
+      "failureCount": 11
+    },
+    {
+      "name": "update-weights",
+      "role": "weight_trainer",
+      "updatesWeights": true,
+      "learningRate": 1,
+      "method": "sgd",
+      "maxEpochs": 200,
+      "objective": "energy-pairwise-softplus",
+      "skip": null,
+      "stepsApplied": 42,
+      "gradL2": 0.0926449329823363,
+      "lossBefore": 1.3046176405843872,
+      "lossAfter": 0.225964060566446,
+      "acceptedBefore": 6,
+      "acceptedAfter": 16,
+      "changedParameters": 225,
+      "parameterCount": 225,
+      "parameterL1": 53.40876302725295,
+      "parameterMaxAbs": 2.248260454771075,
+      "parameterHashBefore": "db3eb48f5662449fa3fd515a9b6d90ca274e8693e69389e3a67c6dcbc5dfd463",
+      "parameterHashAfter": "6cca85e8b7489dcee565d18f417aca4e8cdfbd27ebf11fa8869d995b1b1a63e1",
+      "probeBefore": {
+        "W1[0][0]": 0.27885269150131814,
+        "b2": 0
+      },
+      "probeAfter": {
+        "W1[0][0]": 0.18403609425301953,
+        "b2": -7.335402126987639e-17
+      },
+      "scoreTrace": [
+        {
+          "step": 0,
+          "accepted": 6,
+          "separated": 5,
+          "failureCount": 11,
+          "minGap": -0.6304697721254486
+        },
+        {
+          "step": 1,
+          "accepted": 5,
+          "separated": 5,
+          "failureCount": 11,
+          "minGap": -0.5550419779401424
+        },
+        {
+          "step": 2,
+          "accepted": 6,
+          "separated": 5,
+          "failureCount": 11,
+          "minGap": -0.5044053782790177
+        },
+        {
+          "step": 3,
+          "accepted": 5,
+          "separated": 4,
+          "failureCount": 12,
+          "minGap": -0.47168355609135953
+        },
+        {
+          "step": 6,
+          "accepted": 6,
+          "separated": 4,
+          "failureCount": 12,
+          "minGap": -0.44598318032042483
+        },
+        {
+          "step": 7,
+          "accepted": 7,
+          "separated": 5,
+          "failureCount": 11,
+          "minGap": -0.45538746659339724
+        },
+        {
+          "step": 8,
+          "accepted": 8,
+          "separated": 5,
+          "failureCount": 11,
+          "minGap": -0.47205536782936136
+        },
+        {
+          "step": 11,
+          "accepted": 9,
+          "separated": 6,
+          "failureCount": 10,
+          "minGap": -0.5586912976572267
+        },
+        {
+          "step": 12,
+          "accepted": 11,
+          "separated": 7,
+          "failureCount": 9,
+          "minGap": -0.5969745036170827
+        },
+        {
+          "step": 13,
+          "accepted": 12,
+          "separated": 8,
+          "failureCount": 8,
+          "minGap": -0.6379189095952004
+        },
+        {
+          "step": 14,
+          "accepted": 13,
+          "separated": 9,
+          "failureCount": 7,
+          "minGap": -0.6797894860872276
+        },
+        {
+          "step": 16,
+          "accepted": 14,
+          "separated": 10,
+          "failureCount": 6,
+          "minGap": -0.7616695372053521
+        },
+        {
+          "step": 17,
+          "accepted": 14,
+          "separated": 11,
+          "failureCount": 5,
+          "minGap": -0.8004641586791921
+        },
+        {
+          "step": 18,
+          "accepted": 15,
+          "separated": 12,
+          "failureCount": 4,
+          "minGap": -0.8329810282115896
+        },
+        {
+          "step": 23,
+          "accepted": 16,
+          "separated": 12,
+          "failureCount": 4,
+          "minGap": -0.8393130352891143
+        },
+        {
+          "step": 26,
+          "accepted": 16,
+          "separated": 13,
+          "failureCount": 3,
+          "minGap": -0.8454274392110815
+        },
+        {
+          "step": 33,
+          "accepted": 16,
+          "separated": 14,
+          "failureCount": 2,
+          "minGap": -0.7662846350170536
+        },
+        {
+          "step": 37,
+          "accepted": 16,
+          "separated": 15,
+          "failureCount": 1,
+          "minGap": -0.4233745472859838
+        },
+        {
+          "step": 42,
+          "accepted": 16,
+          "separated": 16,
+          "failureCount": 0,
+          "minGap": 0.08212558362753875
+        }
+      ]
+    },
+    {
+      "name": "official-eval",
+      "role": "eval_runner",
+      "accepted": 16,
+      "separated": 16,
+      "drags": 16,
+      "minGap": 0.08212558362753875,
+      "failures": []
+    }
+  ]
+}
