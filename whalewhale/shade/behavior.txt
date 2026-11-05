@@ -1,0 +1,1 @@
+A shade has two positions, Up and Down. A tap proposes the other position. From Up the reachable next position is Down, and from Down the reachable next position is Up.
